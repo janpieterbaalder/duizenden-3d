@@ -1803,7 +1803,7 @@ function playCollisionSound(v, kind) {
     lp.frequency.value = kind === 'felt' ? 170 : kind === 'wall' ? 120 : 320;
     const gain = c.createGain();
     // Iets meer gain om compensatie voor het zware filteren.
-    const target = Math.min(0.65, 0.18 + (v - 0.5) * 0.085);
+    const target = Math.min(0.95, 0.30 + (v - 0.5) * 0.12);
     gain.gain.setValueAtTime(0.0001, t0);
     gain.gain.exponentialRampToValueAtTime(Math.max(0.001, target), t0 + 0.003);
     gain.gain.exponentialRampToValueAtTime(0.0008, t0 + dur);
