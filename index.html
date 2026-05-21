@@ -1705,7 +1705,6 @@ function getAudioCtx() {
 // CC0 samples van Kenney.nl (zie sounds/CREDITS.txt). Bij fetch-fout valt elk
 // kanaal terug op de oude synth-functies (playDiceSound/playClickSound/playVictoryTune).
 const SOUND_FILES = {
-  uiClick:    ['sounds/ui-click.ogg'],
   winJackpot: ['sounds/win-jackpot.ogg'],
 };
 const audioBuffers = {};        // { key: AudioBuffer[] } — gevuld door preloadAudio
@@ -1778,6 +1777,41 @@ function playDiceSound() {
   } catch(e) {}
 }
 
+// Subtiele collision-sound: korte bandpass-gefilterde noise-burst.
+// kind: 'felt' (zacht/dof) | 'wall' (houtig) | 'dice' (scherp tik).
+// Volume schaalt met inslag-snelheid maar is hard gecapt op ~0.10 om
+// niet opvallend te zijn. Synthese i.p.v. samples = geen 'ticking'-opname-
+// artifacten en deterministisch kort.
+function playCollisionSound(v, kind) {
+  if (!state.soundOn) return;
+  if (activeSources >= MAX_ACTIVE_SOURCES) return;
+  try {
+    const c = getAudioCtx();
+    const t0 = c.currentTime;
+    const dur = kind === 'dice' ? 0.05 : 0.09;
+    const len = Math.max(1, (c.sampleRate * dur) | 0);
+    const buf = c.createBuffer(1, len, c.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1);
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    const bp = c.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.Q.value = 4;
+    bp.frequency.value = kind === 'felt' ? 420 : kind === 'wall' ? 320 : 1600;
+    const gain = c.createGain();
+    const target = Math.min(0.10, 0.015 + (v - 1.0) * 0.018);
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.001, target), t0 + 0.003);
+    gain.gain.exponentialRampToValueAtTime(0.0008, t0 + dur);
+    src.connect(bp); bp.connect(gain); gain.connect(c.destination);
+    activeSources++;
+    src.onended = () => { activeSources = Math.max(0, activeSources - 1); };
+    src.start(t0);
+    src.stop(t0 + dur + 0.01);
+  } catch(e) {}
+}
+
 // Korte bas-tone voor dobbelsteen-selectie. Sinus van ~140Hz naar ~70Hz in ~80ms.
 function playSelectSound() {
   if (!state.soundOn) return;
@@ -1827,13 +1861,8 @@ function unlockAudio() {
 document.addEventListener('touchstart', unlockAudio, { once: true });
 document.addEventListener('click', unlockAudio, { once: true });
 
-// Subtiele UI-klik op de hoofd-actieknoppen.
-['btn-roll', 'btn-bank'].forEach(id => {
-  const el = document.getElementById(id);
-  if (el) el.addEventListener('click', () => {
-    if (state.soundOn) playSample('uiClick', { vol: 0.4 });
-  });
-});
+// Knoppen zijn stil; de visuele press-animatie geeft genoeg feedback.
+// (UI-click sample veroorzaakte een 'tonig' geluid bij start van de worp.)
 
 // ===================== END GAME — CONFETTI & FANFARE =====================
 function endGame(winnerIndex) {
@@ -2850,6 +2879,29 @@ for (let i = 0; i < DICE_COUNT; i++) {
   world.addBody(b);
   diceBodies.push(b);
 }
+
+// ---------------- Collision-audio ----------------
+// Eén 'collide'-listener per dice. Velocity-drempel skipt micro-contacts;
+// throttle voorkomt geluid-spam. Het synth-geluid is subtiel zodat ze niet
+// opvallen — alleen waarneembaar bij echte botsingen (vilt, rand, of dice
+// tegen elkaar bij omklappen). Tijdens vrije val (geen contact) hoor je niets.
+const lastImpactAt = new WeakMap();
+const IMPACT_MIN_VEL = 1.0;        // m/s — drempel voor 'echte' botsing
+const IMPACT_THROTTLE_MS = 60;     // per dice
+
+diceBodies.forEach(b => {
+  b.addEventListener('collide', (e) => {
+    if (!state.soundOn) return;
+    const v = Math.abs(e.contact.getImpactVelocityAlongNormal());
+    if (v < IMPACT_MIN_VEL) return;
+    const now = performance.now();
+    if ((now - (lastImpactAt.get(b) || 0)) < IMPACT_THROTTLE_MS) return;
+    lastImpactAt.set(b, now);
+    const matName = e.body.material && e.body.material.name;
+    const kind = matName === 'felt' ? 'felt' : matName === 'wall' ? 'wall' : 'dice';
+    playCollisionSound(v, kind);
+  });
+});
 
 // ---------------- Resize ----------------
 const BASE_FOV = 38;

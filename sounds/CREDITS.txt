@@ -1,11 +1,8 @@
-Audio assets — alle CC0 1.0 (Public Domain, geen attributie vereist).
+Audio assets — CC0 1.0 (Public Domain, geen attributie vereist).
 
-Bron: Kenney.nl — Interface Sounds, Music Jingles
+Bron: Kenney.nl — Music Jingles
       via https://github.com/lavenderdotpet/CC0-Public-Domain-Sounds
 
-Originele bestandsnamen → lokale bestandsnamen:
-
-  kenney_interfacesounds/Audio/click_002.ogg                  → ui-click.ogg
   kenney_musicjingles/Audio/Steel jingles/jingles_STEEL03.ogg → win-jackpot.ogg
 
 Licentie: CC0 1.0 Universal (https://creativecommons.org/publicdomain/zero/1.0/)
