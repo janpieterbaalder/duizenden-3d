@@ -1521,11 +1521,7 @@ function selectDie(index) {
   if (!die.selected && !canDieScore(die)) return;
 
   die.selected = !die.selected;
-  if (state.soundOn) {
-    if (!playSample('dicePickup', { vol: 0.5, rate: 0.95 + Math.random() * 0.1 })) {
-      playClickSound();
-    }
-  }
+  playSelectSound();
 
   const sel = state.dice.filter(d => d.selected && !d.kept);
   const score = calculateScore(sel.map(d => d.value));
@@ -1722,11 +1718,7 @@ function getAudioCtx() {
 // CC0 samples van Kenney.nl (zie sounds/CREDITS.txt). Bij fetch-fout valt elk
 // kanaal terug op de oude synth-functies (playDiceSound/playClickSound/playVictoryTune).
 const SOUND_FILES = {
-  diceShake:  ['sounds/dice-shake-1.ogg',  'sounds/dice-shake-2.ogg',  'sounds/dice-shake-3.ogg'],
-  diceFelt:   ['sounds/dice-felt-1.ogg',   'sounds/dice-felt-2.ogg',   'sounds/dice-felt-3.ogg'],
-  diceDice:   ['sounds/dice-dice-1.ogg',   'sounds/dice-dice-2.ogg'],
-  diceWall:   ['sounds/dice-wall-1.ogg',   'sounds/dice-wall-2.ogg',   'sounds/dice-wall-3.ogg'],
-  dicePickup: ['sounds/dice-pickup-1.ogg', 'sounds/dice-pickup-2.ogg'],
+  diceShake:  ['sounds/dice-shake-1.ogg', 'sounds/dice-shake-2.ogg', 'sounds/dice-shake-3.ogg'],
   uiClick:    ['sounds/ui-click.ogg'],
   winJackpot: ['sounds/win-jackpot.ogg'],
 };
@@ -1797,6 +1789,27 @@ function playDiceSound() {
     gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.08);
     osc.start(c.currentTime);
     osc.stop(c.currentTime + 0.08);
+  } catch(e) {}
+}
+
+// Korte bas-tone voor dobbelsteen-selectie. Sinus van ~140Hz naar ~70Hz in ~80ms.
+function playSelectSound() {
+  if (!state.soundOn) return;
+  try {
+    const c = getAudioCtx();
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.connect(gain);
+    gain.connect(c.destination);
+    osc.type = 'sine';
+    const t0 = c.currentTime;
+    osc.frequency.setValueAtTime(140, t0);
+    osc.frequency.exponentialRampToValueAtTime(70, t0 + 0.07);
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(0.18, t0 + 0.005); // kort attackje
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.10);
+    osc.start(t0);
+    osc.stop(t0 + 0.11);
   } catch(e) {}
 }
 
@@ -2851,33 +2864,6 @@ for (let i = 0; i < DICE_COUNT; i++) {
   world.addBody(b);
   diceBodies.push(b);
 }
-
-// ---------------- Collision-audio ----------------
-// Eén 'collide'-listener per dice body. Velocity-gemapt volume + pitch-detune
-// geeft natuurlijke variatie; per-body throttle voorkomt buffer-storm tijdens
-// chaotische settling-fases (6 dice tegelijk in vrije val).
-const lastImpactAt = new WeakMap();
-const IMPACT_MIN_VEL = 0.6;        // m/s — onder deze drempel: micro-contact, negeer
-const IMPACT_THROTTLE_MS = 45;     // per dice
-
-diceBodies.forEach(b => {
-  b.addEventListener('collide', (e) => {
-    if (!state.soundOn) return;
-    const v = Math.abs(e.contact.getImpactVelocityAlongNormal());
-    if (v < IMPACT_MIN_VEL) return;
-    const now = performance.now();
-    if ((now - (lastImpactAt.get(b) || 0)) < IMPACT_THROTTLE_MS) return;
-    lastImpactAt.set(b, now);
-    const otherMatName = e.body.material && e.body.material.name;
-    const key = otherMatName === 'felt' ? 'diceFelt'
-              : otherMatName === 'wall' ? 'diceWall'
-              :                           'diceDice';
-    // Map velocity (0.6 → ~8 m/s) naar gain (~0.05 → ~0.9), pitch ±15%.
-    const gain = Math.min(0.9, 0.05 + (v - IMPACT_MIN_VEL) * 0.12);
-    const rate = 0.85 + Math.random() * 0.30;
-    playSample(key, { vol: gain, rate });
-  });
-});
 
 // ---------------- Resize ----------------
 const BASE_FOV = 38;
