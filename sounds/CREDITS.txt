@@ -1,0 +1,27 @@
+Audio assets — alle CC0 1.0 (Public Domain, geen attributie vereist).
+
+Bron: Kenney.nl — Casino Audio, Impact Sounds, Interface Sounds, Music Jingles
+      via https://github.com/lavenderdotpet/CC0-Public-Domain-Sounds
+
+Originele bestandsnamen → lokale bestandsnamen:
+
+  kenney_casinoaudio/Audio/dieShuffle1.ogg          → dice-shake-1.ogg
+  kenney_casinoaudio/Audio/dieShuffle2.ogg          → dice-shake-2.ogg
+  kenney_casinoaudio/Audio/dieShuffle3.ogg          → dice-shake-3.ogg
+  kenney_casinoaudio/Audio/dieGrab1.ogg             → dice-pickup-1.ogg
+  kenney_casinoaudio/Audio/dieGrab2.ogg             → dice-pickup-2.ogg
+
+  kenney_impactsounds/Audio/impactGeneric_light_000.ogg → dice-felt-1.ogg
+  kenney_impactsounds/Audio/impactGeneric_light_001.ogg → dice-felt-2.ogg
+  kenney_impactsounds/Audio/impactGeneric_light_002.ogg → dice-felt-3.ogg
+  kenney_impactsounds/Audio/impactPlank_medium_000.ogg  → dice-wall-1.ogg
+  kenney_impactsounds/Audio/impactPlank_medium_001.ogg  → dice-wall-2.ogg
+  kenney_impactsounds/Audio/impactPlank_medium_002.ogg  → dice-wall-3.ogg
+  kenney_impactsounds/Audio/impactPlank_medium_003.ogg  → dice-dice-1.ogg
+  kenney_impactsounds/Audio/impactPlank_medium_004.ogg  → dice-dice-2.ogg
+
+  kenney_interfacesounds/Audio/click_002.ogg                  → ui-click.ogg
+  kenney_musicjingles/Audio/Steel jingles/jingles_STEEL03.ogg → win-jackpot.ogg
+
+Licentie: CC0 1.0 Universal (https://creativecommons.org/publicdomain/zero/1.0/)
+Auteur: Kenney Vleugels (Kenney.nl)

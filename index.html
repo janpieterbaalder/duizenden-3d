@@ -1438,7 +1438,11 @@ function doRoll() {
   document.getElementById('instruction').textContent = '';
 
   if (state.soundOn) {
-    for (let i = 0; i < 5; i++) setTimeout(playDiceSound, i * 100 + Math.random() * 50);
+    // Eén shake-sample; de collision-listeners op diceBodies genereren de
+    // botsings-geluiden tijdens settling (veel natuurlijker dan 5x synth-toon).
+    if (!playSample('diceShake', { vol: 0.7, rate: 0.95 + Math.random() * 0.1 })) {
+      for (let i = 0; i < 5; i++) setTimeout(playDiceSound, i * 100 + Math.random() * 50);
+    }
   }
 
   animateRoll(() => {
@@ -1478,7 +1482,9 @@ function rollDice() {
     document.getElementById('btn-bank').disabled = true;
     document.getElementById('instruction').textContent = '';
     if (state.soundOn) {
-      for (let i = 0; i < indices.length; i++) setTimeout(playDiceSound, i * 100 + Math.random() * 50);
+      if (!playSample('diceShake', { vol: 0.55, rate: 1.0 + Math.random() * 0.1 })) {
+        for (let i = 0; i < indices.length; i++) setTimeout(playDiceSound, i * 100 + Math.random() * 50);
+      }
     }
     animateRoll(cb, indices);
     return;
@@ -1515,7 +1521,11 @@ function selectDie(index) {
   if (!die.selected && !canDieScore(die)) return;
 
   die.selected = !die.selected;
-  if (state.soundOn) playClickSound();
+  if (state.soundOn) {
+    if (!playSample('dicePickup', { vol: 0.5, rate: 0.95 + Math.random() * 0.1 })) {
+      playClickSound();
+    }
+  }
 
   const sel = state.dice.filter(d => d.selected && !d.kept);
   const score = calculateScore(sel.map(d => d.value));
@@ -1708,6 +1718,71 @@ function getAudioCtx() {
   return audioCtx;
 }
 
+// ----- Sample-based audio (realistisch, OGG-buffers) -----
+// CC0 samples van Kenney.nl (zie sounds/CREDITS.txt). Bij fetch-fout valt elk
+// kanaal terug op de oude synth-functies (playDiceSound/playClickSound/playVictoryTune).
+const SOUND_FILES = {
+  diceShake:  ['sounds/dice-shake-1.ogg',  'sounds/dice-shake-2.ogg',  'sounds/dice-shake-3.ogg'],
+  diceFelt:   ['sounds/dice-felt-1.ogg',   'sounds/dice-felt-2.ogg',   'sounds/dice-felt-3.ogg'],
+  diceDice:   ['sounds/dice-dice-1.ogg',   'sounds/dice-dice-2.ogg'],
+  diceWall:   ['sounds/dice-wall-1.ogg',   'sounds/dice-wall-2.ogg',   'sounds/dice-wall-3.ogg'],
+  dicePickup: ['sounds/dice-pickup-1.ogg', 'sounds/dice-pickup-2.ogg'],
+  uiClick:    ['sounds/ui-click.ogg'],
+  winJackpot: ['sounds/win-jackpot.ogg'],
+};
+const audioBuffers = {};        // { key: AudioBuffer[] } — gevuld door preloadAudio
+let audioPreloadStarted = false;
+let activeSources = 0;          // hard cap om buffer-storm bij chaos te voorkomen
+const MAX_ACTIVE_SOURCES = 8;
+
+async function preloadAudio() {
+  if (audioPreloadStarted) return;
+  audioPreloadStarted = true;
+  const c = getAudioCtx();
+  await Promise.all(Object.entries(SOUND_FILES).map(async ([key, paths]) => {
+    audioBuffers[key] = [];
+    await Promise.all(paths.map(async (path, idx) => {
+      try {
+        const res = await fetch(path);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const arr = await res.arrayBuffer();
+        // decodeAudioData via Promise (modern browsers ondersteunen Promise-vorm)
+        const buf = await new Promise((resolve, reject) => {
+          c.decodeAudioData(arr, resolve, reject);
+        });
+        audioBuffers[key][idx] = buf;
+      } catch (e) {
+        // Stil falen — fallback-synth blijft werken
+      }
+    }));
+  }));
+}
+
+function playSample(key, opts) {
+  if (!state.soundOn) return false;
+  const variants = audioBuffers[key];
+  if (!variants || variants.length === 0) return false;
+  if (activeSources >= MAX_ACTIVE_SOURCES) return false;
+  const buf = variants[(Math.random() * variants.length) | 0];
+  if (!buf) return false;
+  try {
+    const c = getAudioCtx();
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = (opts && opts.rate) != null ? opts.rate : 1;
+    const gain = c.createGain();
+    gain.gain.value = (opts && opts.vol) != null ? opts.vol : 1;
+    src.connect(gain);
+    gain.connect(c.destination);
+    activeSources++;
+    src.onended = () => { activeSources = Math.max(0, activeSources - 1); };
+    src.start();
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 function playDiceSound() {
   if (!state.soundOn) return;
   try {
@@ -1742,11 +1817,24 @@ function playClickSound() {
   } catch(e) {}
 }
 
-// Resume audio on first touch (iOS requirement)
-document.addEventListener('touchstart', function initAudio() {
+// Resume audio on first user gesture (iOS requirement) + preload samples.
+// Beide listeners triggeren elkaar's cleanup zodat we niet twee keer preloaden.
+function unlockAudio() {
   getAudioCtx();
-  document.removeEventListener('touchstart', initAudio);
-}, { once: true });
+  preloadAudio();
+  document.removeEventListener('touchstart', unlockAudio);
+  document.removeEventListener('click', unlockAudio);
+}
+document.addEventListener('touchstart', unlockAudio, { once: true });
+document.addEventListener('click', unlockAudio, { once: true });
+
+// Subtiele UI-klik op de hoofd-actieknoppen.
+['btn-roll', 'btn-bank'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('click', () => {
+    if (state.soundOn) playSample('uiClick', { vol: 0.4 });
+  });
+});
 
 // ===================== END GAME — CONFETTI & FANFARE =====================
 function endGame(winnerIndex) {
@@ -1762,7 +1850,9 @@ function endGame(winnerIndex) {
   overlay.classList.add('show');
 
   startConfetti();
-  if (state.soundOn) playVictoryTune();
+  if (state.soundOn) {
+    if (!playSample('winJackpot', { vol: 0.85 })) playVictoryTune();
+  }
 }
 
 // ---- Confetti engine ----
@@ -2761,6 +2851,33 @@ for (let i = 0; i < DICE_COUNT; i++) {
   world.addBody(b);
   diceBodies.push(b);
 }
+
+// ---------------- Collision-audio ----------------
+// Eén 'collide'-listener per dice body. Velocity-gemapt volume + pitch-detune
+// geeft natuurlijke variatie; per-body throttle voorkomt buffer-storm tijdens
+// chaotische settling-fases (6 dice tegelijk in vrije val).
+const lastImpactAt = new WeakMap();
+const IMPACT_MIN_VEL = 0.6;        // m/s — onder deze drempel: micro-contact, negeer
+const IMPACT_THROTTLE_MS = 45;     // per dice
+
+diceBodies.forEach(b => {
+  b.addEventListener('collide', (e) => {
+    if (!state.soundOn) return;
+    const v = Math.abs(e.contact.getImpactVelocityAlongNormal());
+    if (v < IMPACT_MIN_VEL) return;
+    const now = performance.now();
+    if ((now - (lastImpactAt.get(b) || 0)) < IMPACT_THROTTLE_MS) return;
+    lastImpactAt.set(b, now);
+    const otherMatName = e.body.material && e.body.material.name;
+    const key = otherMatName === 'felt' ? 'diceFelt'
+              : otherMatName === 'wall' ? 'diceWall'
+              :                           'diceDice';
+    // Map velocity (0.6 → ~8 m/s) naar gain (~0.05 → ~0.9), pitch ±15%.
+    const gain = Math.min(0.9, 0.05 + (v - IMPACT_MIN_VEL) * 0.12);
+    const rate = 0.85 + Math.random() * 0.30;
+    playSample(key, { vol: gain, rate });
+  });
+});
 
 // ---------------- Resize ----------------
 const BASE_FOV = 38;
