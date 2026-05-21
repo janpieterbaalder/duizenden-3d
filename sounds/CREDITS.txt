@@ -1,13 +1,9 @@
 Audio assets — alle CC0 1.0 (Public Domain, geen attributie vereist).
 
-Bron: Kenney.nl — Casino Audio, Interface Sounds, Music Jingles
+Bron: Kenney.nl — Interface Sounds, Music Jingles
       via https://github.com/lavenderdotpet/CC0-Public-Domain-Sounds
 
 Originele bestandsnamen → lokale bestandsnamen:
-
-  kenney_casinoaudio/Audio/dieShuffle1.ogg          → dice-shake-1.ogg
-  kenney_casinoaudio/Audio/dieShuffle2.ogg          → dice-shake-2.ogg
-  kenney_casinoaudio/Audio/dieShuffle3.ogg          → dice-shake-3.ogg
 
   kenney_interfacesounds/Audio/click_002.ogg                  → ui-click.ogg
   kenney_musicjingles/Audio/Steel jingles/jingles_STEEL03.ogg → win-jackpot.ogg

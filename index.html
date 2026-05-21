@@ -1437,14 +1437,6 @@ function doRoll() {
   state.phase = 'rolling';
   document.getElementById('instruction').textContent = '';
 
-  if (state.soundOn) {
-    // Eén shake-sample; de collision-listeners op diceBodies genereren de
-    // botsings-geluiden tijdens settling (veel natuurlijker dan 5x synth-toon).
-    if (!playSample('diceShake', { vol: 0.7, rate: 0.95 + Math.random() * 0.1 })) {
-      for (let i = 0; i < 5; i++) setTimeout(playDiceSound, i * 100 + Math.random() * 50);
-    }
-  }
-
   animateRoll(() => {
     const freeDice = state.dice.filter(d => !d.kept);
     const freeValues = freeDice.map(d => d.value);
@@ -1481,11 +1473,6 @@ function rollDice() {
     document.getElementById('btn-roll').disabled = true;
     document.getElementById('btn-bank').disabled = true;
     document.getElementById('instruction').textContent = '';
-    if (state.soundOn) {
-      if (!playSample('diceShake', { vol: 0.55, rate: 1.0 + Math.random() * 0.1 })) {
-        for (let i = 0; i < indices.length; i++) setTimeout(playDiceSound, i * 100 + Math.random() * 50);
-      }
-    }
     animateRoll(cb, indices);
     return;
   }
@@ -1718,7 +1705,6 @@ function getAudioCtx() {
 // CC0 samples van Kenney.nl (zie sounds/CREDITS.txt). Bij fetch-fout valt elk
 // kanaal terug op de oude synth-functies (playDiceSound/playClickSound/playVictoryTune).
 const SOUND_FILES = {
-  diceShake:  ['sounds/dice-shake-1.ogg', 'sounds/dice-shake-2.ogg', 'sounds/dice-shake-3.ogg'],
   uiClick:    ['sounds/ui-click.ogg'],
   winJackpot: ['sounds/win-jackpot.ogg'],
 };
