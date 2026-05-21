@@ -1,0 +1,9 @@
+Audio assets — CC0 1.0 (Public Domain, geen attributie vereist).
+
+Bron: Kenney.nl — Music Jingles
+      via https://github.com/lavenderdotpet/CC0-Public-Domain-Sounds
+
+  kenney_musicjingles/Audio/Steel jingles/jingles_STEEL03.ogg → win-jackpot.ogg
+
+Licentie: CC0 1.0 Universal (https://creativecommons.org/publicdomain/zero/1.0/)
+Auteur: Kenney Vleugels (Kenney.nl)

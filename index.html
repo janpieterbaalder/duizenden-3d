@@ -1437,10 +1437,6 @@ function doRoll() {
   state.phase = 'rolling';
   document.getElementById('instruction').textContent = '';
 
-  if (state.soundOn) {
-    for (let i = 0; i < 5; i++) setTimeout(playDiceSound, i * 100 + Math.random() * 50);
-  }
-
   animateRoll(() => {
     const freeDice = state.dice.filter(d => !d.kept);
     const freeValues = freeDice.map(d => d.value);
@@ -1477,9 +1473,6 @@ function rollDice() {
     document.getElementById('btn-roll').disabled = true;
     document.getElementById('btn-bank').disabled = true;
     document.getElementById('instruction').textContent = '';
-    if (state.soundOn) {
-      for (let i = 0; i < indices.length; i++) setTimeout(playDiceSound, i * 100 + Math.random() * 50);
-    }
     animateRoll(cb, indices);
     return;
   }
@@ -1515,7 +1508,7 @@ function selectDie(index) {
   if (!die.selected && !canDieScore(die)) return;
 
   die.selected = !die.selected;
-  if (state.soundOn) playClickSound();
+  playSelectSound();
 
   const sel = state.dice.filter(d => d.selected && !d.kept);
   const score = calculateScore(sel.map(d => d.value));
@@ -1708,6 +1701,65 @@ function getAudioCtx() {
   return audioCtx;
 }
 
+// ----- Sample-based audio (realistisch, OGG-buffers) -----
+// CC0 samples van Kenney.nl (zie sounds/CREDITS.txt). Bij fetch-fout valt elk
+// kanaal terug op de oude synth-functies (playDiceSound/playClickSound/playVictoryTune).
+const SOUND_FILES = {
+  winJackpot: ['sounds/win-jackpot.ogg'],
+};
+const audioBuffers = {};        // { key: AudioBuffer[] } — gevuld door preloadAudio
+let audioPreloadStarted = false;
+let activeSources = 0;          // hard cap om buffer-storm bij chaos te voorkomen
+const MAX_ACTIVE_SOURCES = 8;
+
+async function preloadAudio() {
+  if (audioPreloadStarted) return;
+  audioPreloadStarted = true;
+  const c = getAudioCtx();
+  await Promise.all(Object.entries(SOUND_FILES).map(async ([key, paths]) => {
+    audioBuffers[key] = [];
+    await Promise.all(paths.map(async (path, idx) => {
+      try {
+        const res = await fetch(path);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const arr = await res.arrayBuffer();
+        // decodeAudioData via Promise (modern browsers ondersteunen Promise-vorm)
+        const buf = await new Promise((resolve, reject) => {
+          c.decodeAudioData(arr, resolve, reject);
+        });
+        audioBuffers[key][idx] = buf;
+      } catch (e) {
+        // Stil falen — fallback-synth blijft werken
+      }
+    }));
+  }));
+}
+
+function playSample(key, opts) {
+  if (!state.soundOn) return false;
+  const variants = audioBuffers[key];
+  if (!variants || variants.length === 0) return false;
+  if (activeSources >= MAX_ACTIVE_SOURCES) return false;
+  const buf = variants[(Math.random() * variants.length) | 0];
+  if (!buf) return false;
+  try {
+    const c = getAudioCtx();
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = (opts && opts.rate) != null ? opts.rate : 1;
+    const gain = c.createGain();
+    gain.gain.value = (opts && opts.vol) != null ? opts.vol : 1;
+    src.connect(gain);
+    gain.connect(c.destination);
+    activeSources++;
+    src.onended = () => { activeSources = Math.max(0, activeSources - 1); };
+    src.start();
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 function playDiceSound() {
   if (!state.soundOn) return;
   try {
@@ -1722,6 +1774,65 @@ function playDiceSound() {
     gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.08);
     osc.start(c.currentTime);
     osc.stop(c.currentTime + 0.08);
+  } catch(e) {}
+}
+
+// Subtiele collision-sound: korte bandpass-gefilterde noise-burst.
+// kind: 'felt' (zacht/dof) | 'wall' (houtig) | 'dice' (scherp tik).
+// Volume schaalt met inslag-snelheid maar is hard gecapt op ~0.10 om
+// niet opvallend te zijn. Synthese i.p.v. samples = geen 'ticking'-opname-
+// artifacten en deterministisch kort.
+function playCollisionSound(v, kind) {
+  if (!state.soundOn) return;
+  if (activeSources >= MAX_ACTIVE_SOURCES) return;
+  try {
+    const c = getAudioCtx();
+    const t0 = c.currentTime;
+    const dur = kind === 'dice' ? 0.10 : 0.18;
+    const len = Math.max(1, (c.sampleRate * dur) | 0);
+    const buf = c.createBuffer(1, len, c.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1);
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    // Low-pass filter geeft een doffe thud i.p.v. heldere tik.
+    // Cutoff bepaalt het 'materiaal'-gevoel: lager = dieper/doffer.
+    const lp = c.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.Q.value = 0.9;  // lagere Q = minder resonantie, meer diffuus
+    lp.frequency.value = kind === 'felt' ? 170 : kind === 'wall' ? 120 : 320;
+    const gain = c.createGain();
+    // Iets meer gain om compensatie voor het zware filteren.
+    const target = Math.min(0.95, 0.30 + (v - 0.5) * 0.12);
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.001, target), t0 + 0.003);
+    gain.gain.exponentialRampToValueAtTime(0.0008, t0 + dur);
+    src.connect(lp); lp.connect(gain); gain.connect(c.destination);
+    activeSources++;
+    src.onended = () => { activeSources = Math.max(0, activeSources - 1); };
+    src.start(t0);
+    src.stop(t0 + dur + 0.01);
+  } catch(e) {}
+}
+
+// Korte bas-tone voor dobbelsteen-selectie. Sinus van ~140Hz naar ~70Hz in ~80ms.
+function playSelectSound() {
+  if (!state.soundOn) return;
+  try {
+    const c = getAudioCtx();
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.connect(gain);
+    gain.connect(c.destination);
+    osc.type = 'sine';
+    const t0 = c.currentTime;
+    osc.frequency.setValueAtTime(140, t0);
+    osc.frequency.exponentialRampToValueAtTime(70, t0 + 0.07);
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(0.40, t0 + 0.005); // kort attackje
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.10);
+    osc.start(t0);
+    osc.stop(t0 + 0.11);
   } catch(e) {}
 }
 
@@ -1742,11 +1853,19 @@ function playClickSound() {
   } catch(e) {}
 }
 
-// Resume audio on first touch (iOS requirement)
-document.addEventListener('touchstart', function initAudio() {
+// Resume audio on first user gesture (iOS requirement) + preload samples.
+// Beide listeners triggeren elkaar's cleanup zodat we niet twee keer preloaden.
+function unlockAudio() {
   getAudioCtx();
-  document.removeEventListener('touchstart', initAudio);
-}, { once: true });
+  preloadAudio();
+  document.removeEventListener('touchstart', unlockAudio);
+  document.removeEventListener('click', unlockAudio);
+}
+document.addEventListener('touchstart', unlockAudio, { once: true });
+document.addEventListener('click', unlockAudio, { once: true });
+
+// Knoppen zijn stil; de visuele press-animatie geeft genoeg feedback.
+// (UI-click sample veroorzaakte een 'tonig' geluid bij start van de worp.)
 
 // ===================== END GAME — CONFETTI & FANFARE =====================
 function endGame(winnerIndex) {
@@ -1762,7 +1881,9 @@ function endGame(winnerIndex) {
   overlay.classList.add('show');
 
   startConfetti();
-  if (state.soundOn) playVictoryTune();
+  if (state.soundOn) {
+    if (!playSample('winJackpot', { vol: 0.85 })) playVictoryTune();
+  }
 }
 
 // ---- Confetti engine ----
@@ -2761,6 +2882,29 @@ for (let i = 0; i < DICE_COUNT; i++) {
   world.addBody(b);
   diceBodies.push(b);
 }
+
+// ---------------- Collision-audio ----------------
+// Eén 'collide'-listener per dice. Velocity-drempel skipt micro-contacts;
+// throttle voorkomt geluid-spam. Het synth-geluid is subtiel zodat ze niet
+// opvallen — alleen waarneembaar bij echte botsingen (vilt, rand, of dice
+// tegen elkaar bij omklappen). Tijdens vrije val (geen contact) hoor je niets.
+const lastImpactAt = new WeakMap();
+const IMPACT_MIN_VEL = 0.5;        // m/s — drempel voor 'echte' botsing
+const IMPACT_THROTTLE_MS = 50;     // per dice
+
+diceBodies.forEach(b => {
+  b.addEventListener('collide', (e) => {
+    if (!state.soundOn) return;
+    const v = Math.abs(e.contact.getImpactVelocityAlongNormal());
+    if (v < IMPACT_MIN_VEL) return;
+    const now = performance.now();
+    if ((now - (lastImpactAt.get(b) || 0)) < IMPACT_THROTTLE_MS) return;
+    lastImpactAt.set(b, now);
+    const matName = e.body.material && e.body.material.name;
+    const kind = matName === 'felt' ? 'felt' : matName === 'wall' ? 'wall' : 'dice';
+    playCollisionSound(v, kind);
+  });
+});
 
 // ---------------- Resize ----------------
 const BASE_FOV = 38;
