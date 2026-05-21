@@ -1788,7 +1788,7 @@ function playCollisionSound(v, kind) {
   try {
     const c = getAudioCtx();
     const t0 = c.currentTime;
-    const dur = kind === 'dice' ? 0.07 : 0.13;
+    const dur = kind === 'dice' ? 0.10 : 0.18;
     const len = Math.max(1, (c.sampleRate * dur) | 0);
     const buf = c.createBuffer(1, len, c.sampleRate);
     const data = buf.getChannelData(0);
@@ -1799,11 +1799,11 @@ function playCollisionSound(v, kind) {
     // Cutoff bepaalt het 'materiaal'-gevoel: lager = dieper/doffer.
     const lp = c.createBiquadFilter();
     lp.type = 'lowpass';
-    lp.Q.value = 1.4;
-    lp.frequency.value = kind === 'felt' ? 260 : kind === 'wall' ? 180 : 480;
+    lp.Q.value = 0.9;  // lagere Q = minder resonantie, meer diffuus
+    lp.frequency.value = kind === 'felt' ? 170 : kind === 'wall' ? 120 : 320;
     const gain = c.createGain();
     // Iets meer gain om compensatie voor het zware filteren.
-    const target = Math.min(0.45, 0.10 + (v - 0.5) * 0.06);
+    const target = Math.min(0.65, 0.18 + (v - 0.5) * 0.085);
     gain.gain.setValueAtTime(0.0001, t0);
     gain.gain.exponentialRampToValueAtTime(Math.max(0.001, target), t0 + 0.003);
     gain.gain.exponentialRampToValueAtTime(0.0008, t0 + dur);
