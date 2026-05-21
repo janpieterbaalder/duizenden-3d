@@ -1800,7 +1800,7 @@ function playCollisionSound(v, kind) {
     bp.Q.value = 4;
     bp.frequency.value = kind === 'felt' ? 420 : kind === 'wall' ? 320 : 1600;
     const gain = c.createGain();
-    const target = Math.min(0.10, 0.015 + (v - 1.0) * 0.018);
+    const target = Math.min(0.32, 0.06 + (v - 0.5) * 0.045);
     gain.gain.setValueAtTime(0.0001, t0);
     gain.gain.exponentialRampToValueAtTime(Math.max(0.001, target), t0 + 0.003);
     gain.gain.exponentialRampToValueAtTime(0.0008, t0 + dur);
@@ -1826,7 +1826,7 @@ function playSelectSound() {
     osc.frequency.setValueAtTime(140, t0);
     osc.frequency.exponentialRampToValueAtTime(70, t0 + 0.07);
     gain.gain.setValueAtTime(0.0001, t0);
-    gain.gain.exponentialRampToValueAtTime(0.18, t0 + 0.005); // kort attackje
+    gain.gain.exponentialRampToValueAtTime(0.40, t0 + 0.005); // kort attackje
     gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.10);
     osc.start(t0);
     osc.stop(t0 + 0.11);
@@ -2886,8 +2886,8 @@ for (let i = 0; i < DICE_COUNT; i++) {
 // opvallen — alleen waarneembaar bij echte botsingen (vilt, rand, of dice
 // tegen elkaar bij omklappen). Tijdens vrije val (geen contact) hoor je niets.
 const lastImpactAt = new WeakMap();
-const IMPACT_MIN_VEL = 1.0;        // m/s — drempel voor 'echte' botsing
-const IMPACT_THROTTLE_MS = 60;     // per dice
+const IMPACT_MIN_VEL = 0.5;        // m/s — drempel voor 'echte' botsing
+const IMPACT_THROTTLE_MS = 50;     // per dice
 
 diceBodies.forEach(b => {
   b.addEventListener('collide', (e) => {
