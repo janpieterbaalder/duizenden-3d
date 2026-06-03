@@ -3079,10 +3079,11 @@ const rollState = {
   restTimer: 0,
   rerollAttempts: new Map(),  // index → aantal re-throw pogingen
   rollStartMs: 0,              // performance.now() bij rollDice — voor budget
+  settleTween: null,           // eind-garantie: zachte rotatie van resterende leuners naar vlak
 };
 const TILT_THRESHOLD = 0.82;       // ~35° — voor isFullyStacked vlakheids-vereiste
 const FLAT_THRESHOLD = 0.985;      // ~10° — eindstand-criterium: hieronder → re-throw
-const MAX_REROLLS = 2;             // max re-throws per dice per worp
+const MAX_REROLLS = 3;             // max re-throws per dice per worp (gericht → meer kans op vlak)
 const REST_DELAY_S = 0.05;         // korte grace na sleep-state → 1e dice mag nog wakker maken
 const ROLL_BUDGET_MS = 8000;       // hard budget: na 8s rolllen geven we op en accept-as-is
 const STABILIZE_KP = 0.04;         // PID-gain voor stabilizing torque (zacht — physics dominant)
@@ -3093,24 +3094,53 @@ function isFullyFlat(body) {
   return isOnFloor(body) && topFaceTilt(body) >= FLAT_THRESHOLD;
 }
 
-// Geeft een dice een nieuwe (kleine) opwaartse impuls + random spin, zodat
-// hij opnieuw tuimelt en de chamfered shape vanzelf naar een vlakke landing
-// rolt. Géén kinematische teleport — alles via physics → natural look.
+// Geeft een dice een nieuwe (kleine) opwaartse impuls + spin, zodat hij opnieuw
+// tuimelt en de chamfered shape vanzelf naar een vlakke landing rolt. Géén
+// kinematische teleport — alles via physics → natural look.
+//
+// CRUCIAAL: de horizontale zet is GERICHT, niet puur random. Een steen die tegen
+// de wand of een andere steen leunt, zit in een wedge. Een willekeurig schopje
+// landt vaak terug in exact dezelfde leunstand. Daarom duwen we de steen actief
+//  (a) naar het tray-centrum (weg van de rand-wand), en
+//  (b) weg van zijn dichtstbijzijnde buur (breekt steen-op-steen leuners).
+// Dit haalt de steen uit de wedge zodat hij vrij kan uittuimelen tot vlak.
 // Bewuste keuzes:
 //  - velocity.y +1.0 m/s: lift ~5cm, blijft dicht bij camera (leesbaarheid)
-//  - horizontaal ±0.4 m/s: kleine zijwaartse zet (breekt wedge-positie)
-//  - angularVelocity ±10 rad/s: stevige tuimel, settelt in ~0.7s
+//  - gerichte component ~0.55 m/s + kleine random ruis bovenop
+//  - angularVelocity ±11 rad/s: stevige tuimel, settelt in ~0.7s
 function rerollDice(body) {
   body.type = CANNON.Body.DYNAMIC;
+  // (a) richting naar centrum (0,0) = weg van de cirkelvormige rand
+  let dx = -body.position.x;
+  let dz = -body.position.z;
+  // (b) extra component weg van de dichtstbijzijnde andere (nog meedoende) steen
+  let nd2 = Infinity, nearest = null;
+  for (const j of rollState.indices) {
+    const o = diceBodies[j];
+    if (o === body) continue;
+    const ox = body.position.x - o.position.x;
+    const oz = body.position.z - o.position.z;
+    const d2 = ox * ox + oz * oz;
+    if (d2 < nd2) { nd2 = d2; nearest = o; }
+  }
+  const NEAR_R = DICE_SIZE * 1.6;
+  if (nearest && nd2 < NEAR_R * NEAR_R) {
+    const d = Math.sqrt(nd2) || 1e-3;
+    dx += ((body.position.x - nearest.position.x) / d) * 1.2;
+    dz += ((body.position.z - nearest.position.z) / d) * 1.2;
+  }
+  const len = Math.hypot(dx, dz) || 1e-3;
+  dx /= len; dz /= len;
+  const INWARD = 0.55;  // m/s gerichte zet uit de wedge
   body.velocity.set(
-    (Math.random() - 0.5) * 0.8,
+    dx * INWARD + (Math.random() - 0.5) * 0.35,
     1.0 + Math.random() * 0.3,
-    (Math.random() - 0.5) * 0.8,
+    dz * INWARD + (Math.random() - 0.5) * 0.35,
   );
   body.angularVelocity.set(
-    (Math.random() - 0.5) * 20,
-    (Math.random() - 0.5) * 20,
-    (Math.random() - 0.5) * 20,
+    (Math.random() - 0.5) * 22,
+    (Math.random() - 0.5) * 22,
+    (Math.random() - 0.5) * 22,
   );
   body.wakeUp();
 }
@@ -3151,11 +3181,14 @@ Renderer3D.rollDice = function(indices, onSettle) {
     diceMeshes[i].visible = true;  // herstel zichtbaarheid (kan verborgen zijn na moveToKept)
     b.type = CANNON.Body.DYNAMIC;
     b.wakeUp();
-    const slotX = (k - (indices.length - 1)/2) * 0.28;
+    // Spawn-spreiding > steen-grootte (0.40 > 0.36) + hoogte-stagger per steen,
+    // zodat de stenen niet als kluit tegelijk neerkomen en op/tegen elkaar
+    // botsen (bron van stapelen/leunen). Ze landen nu gespreid en na elkaar.
+    const slotX = (k - (indices.length - 1)/2) * 0.40;
     b.position.set(
       slotX + (Math.random()-0.5) * 0.06,
-      FELT_TOP_Y + 1.00 + Math.random() * 0.20,
-      0.35 + (Math.random()-0.5) * 0.12,
+      FELT_TOP_Y + 1.00 + k * 0.10 + Math.random() * 0.18,
+      0.35 + (Math.random()-0.5) * 0.16,
     );
     b.quaternion.setFromEuler(
       Math.random() * Math.PI * 2,
@@ -3203,6 +3236,7 @@ Renderer3D.clearTable = function() {
   rollState.onSettle = null;
   rollState.restTimer = 0;
   rollState.rerollAttempts.clear();
+  rollState.settleTween = null;
 };
 
 // ---------------- Move-to-kept tween ----------------
@@ -3250,6 +3284,32 @@ canvas3D.addEventListener('touchstart', e => {
 
 // ---------------- Finalize-helper ----------------
 function finalizeRoll() {
+  // Eind-GARANTIE: in het echt blijft een steen nooit tegen de wand of een
+  // andere steen leunen. Mocht na alle re-throws (of na het budget) tóch nog een
+  // steen scheef liggen — niet vlak én niet netjes gestapeld — dan kantelen we
+  // hem alsnog netjes om naar zijn dichtstbijzijnde vlakke stand. We bewaren de
+  // bovenliggende waarde (de face die al het meest omhoog wees blijft omhoog),
+  // dus dit verandert de worp niet, het maakt 'm alleen leesbaar/realistisch.
+  // De rotatie loopt via een korte ease-tween in tick() i.p.v. een harde snap.
+  const tweens = [];
+  for (const i of rollState.indices) {
+    const b = diceBodies[i];
+    if (isFullyStacked(b)) continue;  // game-regel ("Gestapeld is gooien") handelt dit af
+    if (isFullyFlat(b)) continue;     // ligt al goed
+    const val = topFaceValue(b);
+    tweens.push({
+      i,
+      fromQ: b.quaternion.clone(),
+      toQ: faceQuaternion(val),
+      fromY: b.position.y,
+      toY: FELT_TOP_Y + DICE_SIZE / 2,
+    });
+  }
+  if (tweens.length) {
+    rollState.settleTween = { tweens, t: 0, dur: 0.22 };
+    return;  // tick() draait de tween af en roept finalizeRoll() daarna opnieuw aan
+  }
+
   const results = rollState.indices.map(i => ({
     index: i,
     value: topFaceValue(diceBodies[i]),
@@ -3272,6 +3332,37 @@ function finalizeRoll() {
 const clock = new THREE.Clock();
 function tick() {
   const dt = Math.min(clock.getDelta(), 1/30);
+
+  // Eind-garantie tween: kantel resterende scheve/leunende dice zacht naar hun
+  // vlakke stand (zie finalizeRoll). Loopt vóór de gewone physics-step en slaat
+  // die deze frames over — de betrokken bodies zijn STATIC tijdens de tween.
+  if (rollState.settleTween) {
+    const st = rollState.settleTween;
+    st.t += dt;
+    const p = Math.min(1, st.t / st.dur);
+    const e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;  // easeInOutQuad
+    const _q = new CANNON.Quaternion();
+    for (const tw of st.tweens) {
+      const b = diceBodies[tw.i];
+      b.type = CANNON.Body.STATIC;
+      b.velocity.set(0, 0, 0);
+      b.angularVelocity.set(0, 0, 0);
+      tw.fromQ.slerp(tw.toQ, e, _q);
+      b.quaternion.copy(_q);
+      b.position.y = tw.fromY + (tw.toY - tw.fromY) * e;
+      diceMeshes[tw.i].quaternion.copy(b.quaternion);
+      diceMeshes[tw.i].position.copy(b.position);
+    }
+    if (p >= 1) {
+      rollState.settleTween = null;
+      finalizeRoll();  // dice liggen nu vlak → tweens leeg → echte afronding
+    }
+    updateSelectionVisuals();
+    renderer.render(scene, camera);
+    requestAnimationFrame(tick);
+    return;
+  }
+
   // Physics + mesh-sync alleen tijdens actieve worp/snap — anders ligt alles
   // stil en is iedere step pure overhead (CPU + GC). Scheelt veel batterij/lag
   // tijdens de selectie- en wacht-fasen.
