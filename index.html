@@ -7,6 +7,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="screen-orientation" content="landscape">
 <title>Duizenden</title>
+<meta name="theme-color" content="#0e0e0e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
 <script type="importmap">
 {
   "imports": {
@@ -805,6 +809,165 @@
     pointer-events: none;
   }
 
+  /* ========== SCORE PROGRESS BARS ========== */
+  .score-progress {
+    height: 3px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 4px;
+  }
+  .score-progress i {
+    display: block;
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--gold), var(--gold-light));
+    transition: width 0.6s ease;
+  }
+
+  /* Bank-feedback: pulse op de score + zwevende +punten */
+  @keyframes rowPulse {
+    0% { transform: scale(1); }
+    30% { transform: scale(1.18); }
+    100% { transform: scale(1); }
+  }
+  .score-row.banked .value { animation: rowPulse 0.6s ease; }
+
+  .score-flash {
+    position: absolute;
+    right: -10px;
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--gold-light);
+    text-shadow: 0 1px 4px rgba(0,0,0,0.85);
+    pointer-events: none;
+    animation: scoreFloat 1.5s ease-out forwards;
+    white-space: nowrap;
+  }
+  @keyframes scoreFloat {
+    0% { opacity: 0; transform: translateY(8px); }
+    20% { opacity: 1; }
+    100% { opacity: 0; transform: translateY(-22px); }
+  }
+
+  /* ========== DIFFICULTY BUTTONS (single player) ========== */
+  .diff-btn {
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 2px solid rgba(212,168,67,0.3);
+    background: rgba(0,0,0,0.3);
+    color: var(--gold-light);
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(11px, 2vh, 14px);
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    -webkit-tap-highlight-color: transparent;
+    white-space: nowrap;
+  }
+  .diff-btn.selected {
+    border-color: var(--gold);
+    background: rgba(212,168,67,0.25);
+    box-shadow: 0 0 15px rgba(212,168,67,0.3);
+  }
+
+  /* ========== STATS OVERLAY ========== */
+  #stats-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.88);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  #stats-overlay.show { display: flex; }
+  #stats-content {
+    max-width: 420px;
+    width: 100%;
+    max-height: 85vh;
+    max-height: 85dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    background: linear-gradient(135deg, rgba(26,92,42,0.95), rgba(15,61,26,0.95));
+    border: 2px solid rgba(212,168,67,0.4);
+    border-radius: 16px;
+    padding: 24px;
+    color: var(--cream);
+  }
+  #stats-content h3 {
+    font-family: 'Playfair Display', serif;
+    color: var(--gold);
+    font-size: 20px;
+    margin-bottom: 14px;
+    text-align: center;
+  }
+  .stats-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 7px 4px;
+    border-bottom: 1px solid rgba(212,168,67,0.12);
+    font-size: 14px;
+  }
+  .stats-row span:last-child {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    color: var(--gold-light);
+  }
+  .stats-btns { display: flex; gap: 10px; margin-top: 16px; }
+  .stats-btns button {
+    flex: 1;
+    padding: 10px 0;
+    border-radius: 8px;
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 13px;
+    min-height: 44px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #stats-close { background: var(--gold); color: var(--wood-dark); border: none; }
+  #stats-reset {
+    background: rgba(0,0,0,0.35);
+    color: rgba(245,240,232,0.6);
+    border: 1px solid rgba(212,168,67,0.25);
+  }
+
+  /* ========== WIN RANKING ========== */
+  #win-ranking {
+    margin-top: 18px;
+    z-index: 510;
+    min-width: 280px;
+    max-width: 90vw;
+    background: rgba(0,0,0,0.45);
+    border: 1px solid rgba(212,168,67,0.3);
+    border-radius: 14px;
+    padding: 12px 20px;
+    max-height: 36vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #win-ranking:empty { display: none; }
+  .rank-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 4px 0;
+    font-family: 'Crimson Pro', serif;
+    font-size: clamp(13px, 2.4vh, 17px);
+    color: rgba(245,240,232,0.85);
+  }
+  .rank-row.winner { color: var(--gold-light); font-weight: 600; }
+  .rank-pos { width: 28px; text-align: center; flex-shrink: 0; }
+  .rank-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rank-score { font-family: 'Playfair Display', serif; font-weight: 700; }
+
   /* ========== DESKTOP ENHANCEMENTS ========== */
   @media (min-width: 901px) {
     #table {
@@ -812,17 +975,6 @@
       height: min(88vh, 750px);
       border-radius: 24px;
       box-shadow: 0 0 80px rgba(0,0,0,0.6);
-    }
-
-    #table-border {
-      inset: 0;
-      border-radius: 24px;
-      box-shadow:
-        0 0 0 8px var(--wood-dark),
-        0 0 0 12px var(--wood),
-        0 0 0 16px var(--wood-light),
-        0 0 0 20px var(--wood-dark),
-        0 0 50px rgba(0,0,0,0.7);
     }
 
     #score-panel { top: 16px; left: var(--left-reserve); padding: 14px 20px; min-width: 180px; }
@@ -885,6 +1037,14 @@
           <button class="player-btn" onclick="selectBotCount(2)">2</button>
           <button class="player-btn" onclick="selectBotCount(3)">3</button>
           <button class="player-btn" onclick="selectBotCount(4)">4</button>
+        </div>
+        <div class="bot-count-section">
+          <label>Botniveau</label>
+          <div class="player-buttons">
+            <button class="diff-btn" onclick="selectDifficulty('makkelijk', this)">😴 Makkelijk</button>
+            <button class="diff-btn selected" onclick="selectDifficulty('normaal', this)">🙂 Normaal</button>
+            <button class="diff-btn" onclick="selectDifficulty('expert', this)">🧠 Expert</button>
+          </div>
         </div>
         <button class="setup-action-btn" id="btn-start-single" onclick="startGame()" disabled>STARTEN</button>
       </div>
@@ -953,7 +1113,9 @@
   <div id="toolbar">
     <button class="tool-btn ghost-btn" id="strategy-btn" onclick="toggleStrategy()" title="Strategie">&#8203;</button>
     <button class="tool-btn" id="sound-btn" onclick="toggleSound()" title="Geluid">🔊</button>
+    <button class="tool-btn" onclick="toggleStats()" title="Statistieken">📊</button>
     <button class="tool-btn" onclick="toggleRules()" title="Spelregels">📖</button>
+    <button class="tool-btn" onclick="goHome()" title="Hoofdmenu">🏠</button>
   </div>
 
   <div id="rules-overlay">
@@ -971,6 +1133,7 @@
       <p><strong>Minimum:</strong> Je moet minimaal <strong>350 punten</strong> per beurt halen om te mogen pakken.</p>
       <p><strong>Elke worp:</strong> Tik op scorende dobbelstenen om ze te bewaren (schuiven naar onderkant). Geen score? <em>De tragiek!</em> — alle beurtpunten weg.</p>
       <p><strong>En door!</strong> Alle 6 bewaard? Je mag opnieuw gooien met alle 6!</p>
+      <p><strong>Sneltoetsen (desktop):</strong> Spatie = gooien, Enter = pakken, Esc = sluiten.</p>
       <button id="close-rules" onclick="toggleRules()">Sluiten</button>
     </div>
   </div>
@@ -1034,6 +1197,22 @@
       <button id="close-strategy-bottom" onclick="toggleStrategy()">Sluiten</button>
     </div>
   </div>
+
+  <div id="stats-overlay">
+    <div id="stats-content">
+      <h3>📊 Statistieken</h3>
+      <div class="stats-row"><span>Spellen gespeeld</span><span id="stat-games">0</span></div>
+      <div class="stats-row"><span>Overwinningen (1 speler)</span><span id="stat-wins">0</span></div>
+      <div class="stats-row"><span>Hoogste beurt</span><span id="stat-best-turn">0</span></div>
+      <div class="stats-row"><span>Hoogste eindscore</span><span id="stat-best-score">0</span></div>
+      <div class="stats-row"><span>Totaal gepakt</span><span id="stat-total">0</span></div>
+      <div class="stats-row"><span>De tragiek!</span><span id="stat-farkles">0</span></div>
+      <div class="stats-btns">
+        <button id="stats-reset" onclick="resetStats()">Reset</button>
+        <button id="stats-close" onclick="toggleStats()">Sluiten</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- WIN OVERLAY -->
@@ -1041,6 +1220,7 @@
   <canvas id="confetti-canvas"></canvas>
   <div id="win-text"></div>
   <div id="win-subtitle"></div>
+  <div id="win-ranking"></div>
   <button id="win-restart" onclick="location.reload()">OPNIEUW SPELEN</button>
 </div>
 
@@ -1064,6 +1244,7 @@ const state = {
   gameOver: false,
   // Spelmodus & namen
   mode: 'multi',            // 'single' of 'multi'
+  botDifficulty: 'normaal', // 'makkelijk' | 'normaal' | 'expert'
   playerNames: [],          // namen van alle spelers
   isBot: [],                // boolean array: true als speler een bot is
   // Gestapeld-re-roll: stenen die boven elkaar liggen mogen overgegooid worden
@@ -1075,6 +1256,63 @@ const BOT_NAMES = ['Jacco', 'Bernard', 'Simon'];
 
 const GOAL = 10000;
 const MIN_TURN = 350;
+
+// ===================== HELPERS =====================
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, ch => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]
+  ));
+}
+
+// Trilfeedback op mobiel (stil genegeerd waar niet ondersteund)
+function vibrate(pattern) {
+  try { if (navigator.vibrate) navigator.vibrate(pattern); } catch(e) {}
+}
+
+// ===================== PERSISTENTE STATISTIEKEN =====================
+const STATS_KEY = 'duiz3d-stats';
+const stats = Object.assign(
+  { games: 0, wins: 0, farkles: 0, bestTurn: 0, bestScore: 0, totalBanked: 0 },
+  (() => { try { return JSON.parse(localStorage.getItem(STATS_KEY)) || {}; } catch(e) { return {}; } })()
+);
+function saveStats() {
+  try { localStorage.setItem(STATS_KEY, JSON.stringify(stats)); } catch(e) {}
+}
+function renderStats() {
+  const fmt = n => (n || 0).toLocaleString('nl-NL');
+  document.getElementById('stat-games').textContent = fmt(stats.games);
+  document.getElementById('stat-wins').textContent = fmt(stats.wins);
+  document.getElementById('stat-best-turn').textContent = fmt(stats.bestTurn);
+  document.getElementById('stat-best-score').textContent = fmt(stats.bestScore);
+  document.getElementById('stat-total').textContent = fmt(stats.totalBanked);
+  document.getElementById('stat-farkles').textContent = fmt(stats.farkles);
+}
+function toggleStats() {
+  const overlay = document.getElementById('stats-overlay');
+  if (!overlay.classList.contains('show')) renderStats();
+  overlay.classList.toggle('show');
+}
+function resetStats() {
+  if (!confirm('Alle statistieken wissen?')) return;
+  Object.assign(stats, { games: 0, wins: 0, farkles: 0, bestTurn: 0, bestScore: 0, totalBanked: 0 });
+  saveStats();
+  renderStats();
+}
+
+// ===================== HOOFDMENU =====================
+function goHome() {
+  const setupVisible = !document.getElementById('setup-screen').classList.contains('hidden');
+  if (setupVisible || state.gameOver || confirm('Terug naar het hoofdmenu? Het huidige spel gaat verloren.')) {
+    location.reload();
+  }
+}
+
+// ===================== SERVICE WORKER (PWA) =====================
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
 
 // ===================== LOCK LANDSCAPE (if supported) =====================
 function tryLockLandscape() {
@@ -1097,6 +1335,13 @@ function tryFullscreen() {
 // ===================== SETUP =====================
 let chosenPlayers = 2;
 let chosenMode = null;
+let chosenDifficulty = 'normaal';
+
+function selectDifficulty(diff, btn) {
+  chosenDifficulty = diff;
+  document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+}
 
 function selectMode(mode, btn) {
   chosenMode = mode;
@@ -1164,6 +1409,7 @@ function startGame() {
   tryFullscreen();
 
   state.mode = chosenMode || 'multi';
+  state.botDifficulty = chosenDifficulty;
   state.numPlayers = chosenPlayers || 2;
   state.scores = new Array(state.numPlayers).fill(0);
   state.currentPlayer = 0;
@@ -1202,9 +1448,13 @@ function buildScoreboard() {
     const row = document.createElement('div');
     row.className = 'score-row' + (i === 0 ? ' active' : '');
     row.id = `row-p${i}`;
-    const displayName = state.playerNames[i] + (state.isBot[i] ? ' 🤖' : '');
+    const displayName = escapeHtml(state.playerNames[i]) + (state.isBot[i] ? ' 🤖' : '');
     row.innerHTML = `<span class="label">${displayName}</span><span class="value" id="score-p${i}">0</span>`;
     container.appendChild(row);
+    const bar = document.createElement('div');
+    bar.className = 'score-progress';
+    bar.innerHTML = `<i id="bar-p${i}"></i>`;
+    container.appendChild(bar);
   }
 }
 
@@ -1442,6 +1692,8 @@ function doRoll() {
     const freeValues = freeDice.map(d => d.value);
     if (!canScoreAny(freeValues)) {
       showMessage('DE TRAGIEK!', true);
+      vibrate([70, 50, 70]);
+      if (!isBotTurn()) { stats.farkles++; saveStats(); }
       state.turnScore = 0;
       state.selectedScore = 0;
       updateTurnDisplay();
@@ -1488,6 +1740,7 @@ function rollDice() {
       animateSlideToKept(sel, () => {
         if (state.dice.every(d => d.kept)) {
           showMessage('EN DOOR!', false);
+          vibrate(40);
           setTimeout(() => { hideMessage(); state.dice = []; state.keptCount = 0; doRoll(); }, 1100);
           return;
         }
@@ -1554,8 +1807,20 @@ function finishBank() {
     setTimeout(() => { hideMessage(); state.turnScore = 0; updateTurnDisplay(); nextPlayer(); }, 1500);
     return;
   }
+  const oldScore = state.scores[state.currentPlayer];
   state.scores[state.currentPlayer] += state.turnScore;
   updateScoreboard();
+  // Visuele bank-feedback: tellende score + zwevende +punten + lichte tril
+  const scoreEl = document.getElementById(`score-p${state.currentPlayer}`);
+  if (scoreEl) animateScoreCount(scoreEl, oldScore, state.scores[state.currentPlayer]);
+  flashScore(state.currentPlayer, state.turnScore);
+  vibrate(25);
+  // Statistieken (mensen op dit apparaat)
+  if (!state.isBot[state.currentPlayer]) {
+    if (state.turnScore > stats.bestTurn) stats.bestTurn = state.turnScore;
+    stats.totalBanked += state.turnScore;
+    saveStats();
+  }
 
   // Check of iemand de drempel heeft bereikt — start eindronde
   if (!state.finalRound && state.scores[state.currentPlayer] >= GOAL) {
@@ -1579,8 +1844,11 @@ function finishBankContinue() {
 function nextPlayer() {
   const nextP = (state.currentPlayer + 1) % state.numPlayers;
 
-  // Check of de eindronde voorbij is (ronde is afgelopen wanneer we terug bij speler 0 komen)
-  if (state.finalRound && nextP === 0) {
+  // Eindronde voorbij zodra de beurt terugkomt bij de speler die hem triggerde:
+  // dan heeft elke andere speler precies één laatste beurt gehad. (Voorheen
+  // eindigde de ronde bij speler 0, waardoor spelers vóór de trigger hun
+  // laatste beurt misliepen.)
+  if (state.finalRound && nextP === state.finalRoundTrigger) {
     state.gameOver = true;
     let maxScore = -1;
     let winner = -1;
@@ -1624,7 +1892,37 @@ function updateScoreboard() {
   for (let i = 0; i < state.numPlayers; i++) {
     const el = document.getElementById(`score-p${i}`);
     if (el) el.textContent = state.scores[i].toLocaleString('nl-NL');
+    const bar = document.getElementById(`bar-p${i}`);
+    if (bar) bar.style.width = Math.min(100, state.scores[i] / GOAL * 100) + '%';
   }
+}
+
+// Tellende score-animatie voor de zojuist gepakte punten
+function animateScoreCount(el, from, to) {
+  const dur = 700;
+  const t0 = performance.now();
+  function step(t) {
+    const p = Math.min(1, (t - t0) / dur);
+    const e = 1 - Math.pow(1 - p, 3);
+    el.textContent = Math.round(from + (to - from) * e).toLocaleString('nl-NL');
+    if (p < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+// Zwevende "+punten" naast de scorebord-rij van de speler
+function flashScore(playerIdx, points) {
+  const panel = document.getElementById('score-panel');
+  const row = document.getElementById(`row-p${playerIdx}`);
+  if (!panel || !row) return;
+  const span = document.createElement('span');
+  span.className = 'score-flash';
+  span.textContent = `+${points.toLocaleString('nl-NL')}`;
+  span.style.top = row.offsetTop + 'px';
+  panel.appendChild(span);
+  setTimeout(() => span.remove(), 1600);
+  row.classList.add('banked');
+  setTimeout(() => row.classList.remove('banked'), 700);
 }
 
 function updateTurnDisplay() {
@@ -1672,12 +1970,40 @@ function toggleRules() { document.getElementById('rules-overlay').classList.togg
 function toggleStrategy() { document.getElementById('strategy-overlay').classList.toggle('show'); }
 
 // ===================== SOUND TOGGLE =====================
-function toggleSound() {
-  state.soundOn = !state.soundOn;
+function applySoundButton() {
   const btn = document.getElementById('sound-btn');
   btn.textContent = state.soundOn ? '🔊' : '🔇';
   btn.classList.toggle('muted', !state.soundOn);
 }
+function toggleSound() {
+  state.soundOn = !state.soundOn;
+  try { localStorage.setItem('duiz3d-sound', state.soundOn ? 'on' : 'off'); } catch(e) {}
+  applySoundButton();
+}
+// Herstel opgeslagen geluid-voorkeur
+try { if (localStorage.getItem('duiz3d-sound') === 'off') state.soundOn = false; } catch(e) {}
+applySoundButton();
+
+// ===================== KEYBOARD SHORTCUTS (desktop) =====================
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Escape') {
+    document.getElementById('rules-overlay').classList.remove('show');
+    document.getElementById('strategy-overlay').classList.remove('show');
+    document.getElementById('stats-overlay').classList.remove('show');
+    return;
+  }
+  if (e.repeat) return;
+  // Alleen tijdens een lopend spel, niet in een input of tijdens bot-beurt
+  if (!document.getElementById('setup-screen').classList.contains('hidden')) return;
+  if (state.gameOver || isBotTurn()) return;
+  if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (!document.getElementById('btn-roll').disabled) rollDice();
+  } else if (e.code === 'Enter') {
+    if (!document.getElementById('btn-bank').disabled) bankScore();
+  }
+});
 
 // ===================== TOUCH / CLICK HANDLING =====================
 // Klikken op een dobbelsteen gebeurt via raycasting in de 3D-renderer; die
@@ -1876,9 +2202,34 @@ function endGame(winnerIndex) {
 
   const overlay = document.getElementById('win-overlay');
   const winnerName = state.playerNames[winnerIndex] || `Speler ${winnerIndex + 1}`;
-  document.getElementById('win-text').textContent = `${winnerName} heeft gewonnen!`;
-  document.getElementById('win-subtitle').textContent = `Score: ${state.scores[winnerIndex].toLocaleString('nl-NL')} punten`;
+  const maxScore = state.scores[winnerIndex];
+  const tied = state.scores.filter(s => s === maxScore).length > 1;
+  document.getElementById('win-text').textContent =
+    tied ? 'Gelijkspel!' : `${winnerName} heeft gewonnen!`;
+  document.getElementById('win-subtitle').textContent = `Score: ${maxScore.toLocaleString('nl-NL')} punten`;
+
+  // Volledige eindstand, gesorteerd op score
+  const medals = ['🥇', '🥈', '🥉'];
+  const ranking = state.scores
+    .map((s, i) => ({ name: state.playerNames[i] || `Speler ${i + 1}`, score: s, bot: state.isBot[i] }))
+    .sort((a, b) => b.score - a.score);
+  document.getElementById('win-ranking').innerHTML = ranking.map((r, idx) => `
+    <div class="rank-row${r.score === maxScore ? ' winner' : ''}">
+      <span class="rank-pos">${medals[idx] || (idx + 1) + '.'}</span>
+      <span class="rank-name">${escapeHtml(r.name)}${r.bot ? ' 🤖' : ''}</span>
+      <span class="rank-score">${r.score.toLocaleString('nl-NL')}</span>
+    </div>`).join('');
+
   overlay.classList.add('show');
+  vibrate([80, 50, 80, 50, 160]);
+
+  // Statistieken bijwerken
+  stats.games++;
+  if (state.mode === 'single' && !state.isBot[winnerIndex]) stats.wins++;
+  for (let i = 0; i < state.numPlayers; i++) {
+    if (!state.isBot[i] && state.scores[i] > stats.bestScore) stats.bestScore = state.scores[i];
+  }
+  saveStats();
 
   startConfetti();
   if (state.soundOn) {
@@ -2145,7 +2496,10 @@ function botFindKeepOptions(values) {
   return results;
 }
 
-// Bot strategie: kies de wiskundig optimale dobbelstenen via V-tabel lookup
+// Bot strategie: kies dobbelstenen passend bij het gekozen botniveau.
+// - makkelijk/normaal: greedy — pak gewoon alle scorende dobbelstenen
+//   (maximale score; bij gelijke score met minder stenen wint die optie).
+// - expert: wiskundig optimaal via V-tabel lookup.
 function botSelectDice() {
   const freeDice = state.dice.filter(d => !d.kept);
   const values = freeDice.map(d => d.value);
@@ -2154,16 +2508,26 @@ function botSelectDice() {
   const options = botFindKeepOptions(values);
   if (options.length === 0) return;
 
-  // Evalueer elke optie via de V-tabel
   let bestVal = -Infinity;
   let bestOpt = options[0];
-  for (const opt of options) {
-    const newScore = state.turnScore + opt.score;
-    const newDice = dRolled - opt.kept > 0 ? dRolled - opt.kept : 6;
-    const val = botGetV(newScore, newDice);
-    if (val > bestVal) {
-      bestVal = val;
-      bestOpt = opt;
+  if (state.botDifficulty === 'expert') {
+    // Evalueer elke optie via de V-tabel
+    for (const opt of options) {
+      const newScore = state.turnScore + opt.score;
+      const newDice = dRolled - opt.kept > 0 ? dRolled - opt.kept : 6;
+      const val = botGetV(newScore, newDice);
+      if (val > bestVal) {
+        bestVal = val;
+        bestOpt = opt;
+      }
+    }
+  } else {
+    for (const opt of options) {
+      const val = opt.score * 10 - opt.kept; // max score, tie-break: minder stenen kwijt
+      if (val > bestVal) {
+        bestVal = val;
+        bestOpt = opt;
+      }
     }
   }
 
@@ -2177,7 +2541,7 @@ function botSelectDice() {
   }
 }
 
-// Bot beslissing: doorgooien of pakken? Gebaseerd op V-tabel.
+// Bot beslissing: doorgooien of pakken? Afhankelijk van botniveau.
 function botShouldBank(turnScore, diceRemaining) {
   if (state.finalRound) {
     const myTotal = state.scores[state.currentPlayer] + turnScore;
@@ -2185,12 +2549,25 @@ function botShouldBank(turnScore, diceRemaining) {
     const highestOther = Math.max(
       ...state.scores.filter((_, i) => i !== state.currentPlayer)
     );
-    // Altijd doorgooien als je nog niet boven de leider zit
+    // Altijd doorgooien als je nog niet boven de leider zit (alle niveaus —
+    // pakken onder de leider is in de laatste ronde gegarandeerd verlies)
     if (myTotal <= highestOther) {
       return false;
     }
   }
-  // Pak als de beurtscore >= verwachte waarde van doorgooien
+  if (state.botDifficulty === 'makkelijk') {
+    // Pakt zodra het mag — laat veel verwachte waarde liggen
+    return turnScore >= MIN_TURN;
+  }
+  if (state.botDifficulty === 'normaal') {
+    // Vuistregels ("gouden regels"): doorgooien met 5-6 stenen,
+    // break-even ~1000 bij 4, pakken zodra het kan bij 1-3
+    if (diceRemaining >= 5) return false;
+    if (diceRemaining === 4) return turnScore >= 1000;
+    if (diceRemaining === 3) return turnScore >= 400;
+    return turnScore >= MIN_TURN;
+  }
+  // Expert: pak als de beurtscore >= verwachte waarde van doorgooien
   return turnScore >= botGetV(turnScore, diceRemaining);
 }
 
