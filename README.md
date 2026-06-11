@@ -27,7 +27,9 @@ Op telefoon/tablet: speel in liggende stand. Via HTTPS is het spel **installeerb
 
 ## Features
 
-- 🎲 **Echte 3D-physics** — Three.js + cannon-es; de worp-uitkomst komt uit de fysica, geen vooraf bepaald resultaat.
+- 🎲 **Echte 3D-physics** — Three.js + cannon-es; de worp-uitkomst komt uit de fysica, geen vooraf bepaald resultaat. Worp-eerlijkheid en natuurlijk tuimelgedrag zijn gevalideerd met een headless physics-testharnas (chi²-toets over duizenden gesimuleerde worpen).
+- 🎯 **Tragiek-kans indicator** — zie live het risico van je volgende worp.
+- 🎬 **Cinematics** — camera-intro, stofwolkjes bij landing, pulserende selectie-ringen, screen-flash bij De Tragiek/En Door, combo-toasts voor straat en drie enen.
 - 🤖 **Drie botniveaus** — Makkelijk (pakt zo snel mogelijk), Normaal (vuistregels), Expert (wiskundig optimaal via dynamic programming).
 - 👥 **Hot-seat multiplayer** — 2 t/m 11 spelers met eigen namen.
 - 📊 **Statistieken** — spellen, overwinningen, hoogste beurt/eindscore en tragieks, bewaard in `localStorage`.
