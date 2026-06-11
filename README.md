@@ -46,5 +46,17 @@ Op telefoon/tablet: speel in liggende stand. Via HTTPS is het spel **installeerb
 | `sw.js` | Service worker (cache-first, offline support) |
 | `manifest.webmanifest` / `icon.svg` | PWA-installatie |
 | `sounds/` | CC0-audiosamples |
+| `tools/physics-harness.mjs` | Headless physics-testharnas (zie hieronder) |
+
+### Physics valideren
+
+Het testharnas repliceert de cannon-es-wereld uit `index.html` zonder rendering en meet leun-percentage, settle-tijden, dode landingen en worp-eerlijkheid (chi²) over duizenden gesimuleerde worpen:
+
+```sh
+npm install cannon-es@0.20.0   # eenmalig
+node tools/physics-harness.mjs 2000
+```
+
+Wijzig je physics-parameters in `index.html`, werk dan ook de `DEFAULTS` in het harnas bij en draai het opnieuw.
 
 De 3D-renderer (Three.js + cannon-es, geladen via unpkg-importmap) levert de worp-uitkomsten; de klassieke script-sectie blijft de bron van waarheid voor scores, selectie en bot-AI. De expert-bot gebruikt een vooraf berekende V-tabel (verwachte beurtwaarde per toestand) uit dynamic programming over alle mogelijke worpen.

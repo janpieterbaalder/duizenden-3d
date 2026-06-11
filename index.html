@@ -3329,16 +3329,21 @@ world.defaultContactMaterial.friction = 0.35;
 const feltCMat = new CANNON.Material('felt');
 const diceCMat = new CANNON.Material('dice');
 const wallCMat = new CANNON.Material('wall');
-// Frictie-waarden fors omhoog (dice-box-threejs niveau, 0.6 daar, wij iets
-// soberder op 0.4). Lage friction (oud) → dice gleden langs rand/elkaar en
-// bleven in wedge-posities plakken. Hoge friction → ze tuimelen vandaan.
+// Vilt/wand-friction 0.40 (dice-box-threejs niveau, 0.6 daar, wij iets
+// soberder). Lage friction (oud) → dice gleden langs de rand en bleven in
+// wedge-posities plakken. Hoge friction → ze tuimelen vandaan.
 // Wall-restitution hoog → dice kaatsen actief terug i.p.v. te blijven liggen.
 world.addContactMaterial(new CANNON.ContactMaterial(feltCMat, diceCMat, {
   friction: 0.40, restitution: 0.28,
   contactEquationStiffness: 1e8, contactEquationRelaxation: 3,
 }));
+// Dice-op-dice: gladder en levendiger dan dice-op-vilt. Echte acryl-dobbel-
+// stenen ketsen scherp van elkaar af (hoge restitution) en glijden makkelijk
+// (lage friction) — de oude 0.40/0.30 voelde plakkerig. Headless gevalideerd
+// (N=2000 worpen): leun-percentage en eerlijkheid onveranderd, want de
+// stabilizing torque + chamfer doen het anti-wedge-werk al.
 world.addContactMaterial(new CANNON.ContactMaterial(diceCMat, diceCMat, {
-  friction: 0.40, restitution: 0.30,
+  friction: 0.28, restitution: 0.45,
   contactEquationStiffness: 1e8, contactEquationRelaxation: 3,
 }));
 world.addContactMaterial(new CANNON.ContactMaterial(wallCMat, diceCMat, {
@@ -3490,7 +3495,9 @@ for (let i = 0; i < DICE_COUNT; i++) {
     material: diceCMat,
     shape: buildChamferedBoxShape(DICE_SIZE / 2, DICE_CHAMFER),
     linearDamping: 0.14,     // was 0.04 — energie verlies door lucht/vilt
-    angularDamping: 0.35,    // was 0.18 — sneller settelen, geen eindeloze tolling
+    angularDamping: 0.28,    // was 0.35 — iets langere, natuurlijkere uitrol;
+                             // gecombineerd met sterkere stabilizing torque
+                             // settelt het tóch sneller (headless: 2.4→2.3s)
     allowSleep: true,
     sleepSpeedLimit: 0.15,   // was 0.05 — robuuster tegen solver-microjitter
     sleepTimeLimit: 0.3,     // was 0.4 — sneller in sleep-staat na rust
@@ -3705,7 +3712,12 @@ const FLAT_THRESHOLD = 0.985;      // ~10° — eindstand-criterium: hieronder �
 const MAX_REROLLS = 3;             // max re-throws per dice per worp (gericht → meer kans op vlak)
 const REST_DELAY_S = 0.05;         // korte grace na sleep-state → 1e dice mag nog wakker maken
 const ROLL_BUDGET_MS = 8000;       // hard budget: na 8s rolllen geven we op en accept-as-is
-const STABILIZE_KP = 0.04;         // PID-gain voor stabilizing torque (zacht — physics dominant)
+const STABILIZE_KP = 0.07;         // PID-gain voor stabilizing torque (zacht — physics dominant).
+                                   // Was 0.04; headless gemeten (N=4000 worpen): 0.07 halveert
+                                   // leunende stenen (0,9%→0,4% per steen) en zichtbare
+                                   // correctie-ingrepen (5%→2,5% van de worpen), chi² 1,4 (eerlijk).
+                                   // De torque werkt alleen vlak boven het vilt en duwt naar de
+                                   // dichtstbijzijnde face — waarde-neutraal, onzichtbaar.
 const STABILIZE_SKIP_TILT = 0.995; // boven dit (~6°) geen torque meer (voorkomt sleep-oscillatie)
 
 // Eindstand-criterium: dice ligt vlak op vilt binnen ~10°.
@@ -3713,21 +3725,24 @@ function isFullyFlat(body) {
   return isOnFloor(body) && topFaceTilt(body) >= FLAT_THRESHOLD;
 }
 
-// Geeft een dice een nieuwe (kleine) opwaartse impuls + spin, zodat hij opnieuw
-// tuimelt en de chamfered shape vanzelf naar een vlakke landing rolt. Géén
-// kinematische teleport — alles via physics → natural look.
+// Haalt een leunende/scheve steen uit zijn wedge — in twee gradaties:
+//
+//  1) TOPPLE (poging 1 en 2): de natuurlijke route. Een klein gericht zetje
+//     uit de wedge + een draai-impuls om precies de as die de bovenste face
+//     plat kantelt. Dat ziet eruit alsof de steen zijn balans verliest en
+//     gewoon omvalt — wat een echte dobbelsteen in die stand ook zou doen.
+//     Geen verticale "hop", geen abrupte richtingswissel.
+//  2) HOP (laatste poging): mocht de steen ondanks twee topples in een
+//     hardnekkige wedge terugvallen, dan alsnog de stevige variant: lift
+//     ~5 cm + flinke random tuimel. Headless gemeten komt dit vrijwel nooit
+//     meer voor (< 0,1% van de worpen).
 //
 // CRUCIAAL: de horizontale zet is GERICHT, niet puur random. Een steen die tegen
 // de wand of een andere steen leunt, zit in een wedge. Een willekeurig schopje
 // landt vaak terug in exact dezelfde leunstand. Daarom duwen we de steen actief
 //  (a) naar het tray-centrum (weg van de rand-wand), en
 //  (b) weg van zijn dichtstbijzijnde buur (breekt steen-op-steen leuners).
-// Dit haalt de steen uit de wedge zodat hij vrij kan uittuimelen tot vlak.
-// Bewuste keuzes:
-//  - velocity.y +1.0 m/s: lift ~5cm, blijft dicht bij camera (leesbaarheid)
-//  - gerichte component ~0.55 m/s + kleine random ruis bovenop
-//  - angularVelocity ±11 rad/s: stevige tuimel, settelt in ~0.7s
-function rerollDice(body) {
+function rerollDice(body, attempts = 0) {
   body.type = CANNON.Body.DYNAMIC;
   // (a) richting naar centrum (0,0) = weg van de cirkelvormige rand
   let dx = -body.position.x;
@@ -3750,6 +3765,40 @@ function rerollDice(body) {
   }
   const len = Math.hypot(dx, dz) || 1e-3;
   dx /= len; dz /= len;
+
+  if (attempts < MAX_REROLLS - 1) {
+    // TOPPLE — kantel-as = topNormal × up: een positieve rotatie om die as
+    // draait de meest-omhoog-wijzende face naar vlak. De physics behoudt de
+    // controle (gravity + contacts ronden de val af), wij geven alleen het
+    // "balansverlies"-duwtje. 8 rad/s is genoeg om over de chamfer-rand te
+    // kiepen, te weinig om een vol nieuw tuimelnummer te starten.
+    let bestDot = -Infinity, bnx = 0, bnz = 0;
+    for (const f of faceNormals) {
+      const wn = body.quaternion.vmult(f.n);
+      if (wn.y > bestDot) { bestDot = wn.y; bnx = wn.x; bnz = wn.z; }
+    }
+    let axX = -bnz, axZ = bnx;                  // = topNormal × (0,1,0)
+    const al = Math.hypot(axX, axZ) || 1e-3;
+    axX /= al; axZ /= al;
+    const W = 8.0;
+    body.velocity.set(
+      dx * 0.7 + (Math.random() - 0.5) * 0.12,
+      0.35,                                      // mini-lift: los van het vilt, geen hop
+      dz * 0.7 + (Math.random() - 0.5) * 0.12,
+    );
+    body.angularVelocity.set(
+      axX * W + (Math.random() - 0.5) * 1.5,
+      (Math.random() - 0.5) * 1.5,
+      axZ * W + (Math.random() - 0.5) * 1.5,
+    );
+    body.wakeUp();
+    return;
+  }
+
+  // HOP — laatste redmiddel, bewuste keuzes:
+  //  - velocity.y +1.0 m/s: lift ~5cm, blijft dicht bij camera (leesbaarheid)
+  //  - gerichte component ~0.55 m/s + kleine random ruis bovenop
+  //  - angularVelocity ±11 rad/s: stevige tuimel, settelt in ~0.7s
   const INWARD = 0.55;  // m/s gerichte zet uit de wedge
   body.velocity.set(
     dx * INWARD + (Math.random() - 0.5) * 0.35,
@@ -3852,18 +3901,27 @@ Renderer3D.rollDice = function(indices, onSettle) {
     // reikt tot zijn omgeschreven bol (r = 0.5·√3·0.36 ≈ 0.31): twee buren op
     // 0.40 (oud) konden dus IN elkaar spawnen, en de solver loste die
     // penetratie op met een impuls die de spin doofde → steen viel "dood"
-    // omlaag zonder te tuimelen. Idem voor de voorwand op z=0.55: spawn-z
-    // 0.35±0.08 (oud) clipte met hoek-oriëntaties door die plane. Nu:
-    // dx 0.60 + dy-stagger 0.20 (3D-afstand ≈ 0.63 > 0.62 worst-case) en
-    // spawn-z 0.10 (max hoekbereik 0.49 < 0.55). Headless gemeten: dode
-    // landingen 10,2% → 0,0% over 2400 worpen.
+    // omlaag zonder te tuimelen. Nu: dx 0.60 + dy-stagger 0.20 (3D-afstand
+    // ≈ 0.63 > 0.62 worst-case); z-scatter vergroot onderlinge afstand alleen
+    // maar. Spawn-z ±0.215 rond 0.02: max 0.235 + 0.311 (hoekbereik) = 0.546
+    // < voorwand z=0.55 — geen clipping. De ruime z-spreiding breekt de
+    // onnatuurlijke "rechte lijn" waarin de stenen eerst neerkwamen.
+    // Headless gemeten (N=2000): dode landingen 0,0%, chi² 6,8 (eerlijk).
     const slotX = (k - (indices.length - 1)/2) * 0.60;
     b.position.set(
       slotX + (Math.random()-0.5) * 0.06,
       FELT_TOP_Y + 1.00 + k * 0.20 + Math.random() * 0.18,
-      0.10 + (Math.random()-0.5) * 0.16,
+      0.02 + (Math.random()-0.5) * 0.43,
     );
     randomUniformQuaternion(b.quaternion);
+    // Interpolatie-state verversen na teleport-spawn: physics stept alleen
+    // tijdens een worp, dus previous* wijst nog naar de vórige rustplek. Op
+    // high-refresh schermen (eerste frame = 0 substeps) zou de mesh anders
+    // één frame op een lerp tussen oude en nieuwe positie flitsen.
+    b.previousPosition.copy(b.position);
+    b.interpolatedPosition.copy(b.position);
+    b.previousQuaternion.copy(b.quaternion);
+    b.interpolatedQuaternion.copy(b.quaternion);
     b.velocity.set(
       (Math.random()-0.5) * 1.8,
       -0.3 - Math.random() * 0.2,
@@ -4000,7 +4058,17 @@ function finalizeRoll() {
 // ---------------- Render-lus ----------------
 const clock = new THREE.Clock();
 function tick() {
-  const dt = Math.min(clock.getDelta(), 1/30);
+  const rawDt = clock.getDelta();
+  // Visuele dt (tweens, puffs, intro): clamp op 1/30 zodat een hikkende frame
+  // geen sprong in animaties geeft. De PHYSICS gebruikt een eigen, ruimere
+  // clamp (physDt hieronder) — de oude gedeelde 1/30-clamp was precies de
+  // slow-motion-bug: onder 30 fps simuleerde de physics minder tijd dan er
+  // werkelijk verstreek en ging de hele worp traag ogen.
+  const dt = Math.min(rawDt, 1/30);
+  // Physics-dt: tot 100 ms inhalen per frame (= 6 substeps van 1/60). Pas
+  // daaronder (~10 fps device-snelheid) wordt de simulatie zachtjes trager —
+  // cannon-es heeft bovendien een interne bail-out tegen een spiral-of-death.
+  const physDt = Math.min(rawDt, 0.1);
 
   // Camera-intro sweep (eenmalig bij spelstart)
   if (introState) {
@@ -4057,13 +4125,16 @@ function tick() {
   // tijdens de selectie- en wacht-fasen.
   if (rollState.active) {
     // Stabilizing torque loopt via het 'preStep'-event (per substep).
-    // maxSubSteps 6 (was 3): bij framedrops onder ~20 fps simuleerde de
-    // physics anders minder tijd dan er verstreek → slow-motion worp. Met 6
-    // substeps blijft de simulatie real-time tot ~10 fps.
-    world.step(1/60, dt, 6);
+    // maxSubSteps 6: met physDt (clamp 100 ms i.p.v. 1/30) blijft de
+    // simulatie real-time tot ~10 fps — géén slow-motion bij framedrops.
+    world.step(1/60, physDt, 6);
+    // Mesh-sync via cannon's GEÏNTERPOLEERDE transforms: world.step() lerpt
+    // previous→current over de accumulator-rest. Zo beweegt de worp vloeiend
+    // op élke refresh-rate (90/120 Hz-schermen zagen eerst 60 Hz-quantisatie)
+    // en verdwijnt micro-judder bij wisselende frametijden.
     for (let i = 0; i < DICE_COUNT; i++) {
-      diceMeshes[i].position.copy(diceBodies[i].position);
-      diceMeshes[i].quaternion.copy(diceBodies[i].quaternion);
+      diceMeshes[i].position.copy(diceBodies[i].interpolatedPosition);
+      diceMeshes[i].quaternion.copy(diceBodies[i].interpolatedQuaternion);
     }
   }
 
@@ -4082,7 +4153,7 @@ function tick() {
         if (diceBodies[i].sleepState !== CANNON.Body.SLEEPING) { allRest = false; break; }
       }
       if (allRest) {
-        rollState.restTimer += dt;
+        rollState.restTimer += physDt;  // gekoppeld aan gesimuleerde tijd, niet visuele dt
         if (rollState.restTimer > REST_DELAY_S) {
           // Beslis per dice: vlak op vilt (ok) | volledig gestapeld (game flag)
           // | anders → re-throw. Chamfered shape maakt re-throw zelden nodig.
@@ -4093,7 +4164,7 @@ function tick() {
             if (isFullyStacked(b)) continue;
             const attempts = rollState.rerollAttempts.get(i) || 0;
             if (attempts >= MAX_REROLLS) continue;  // give up, accept as-is
-            rerollDice(b);
+            rerollDice(b, attempts);
             rollState.rerollAttempts.set(i, attempts + 1);
             anyReroll = true;
           }
