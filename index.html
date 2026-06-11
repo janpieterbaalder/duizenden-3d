@@ -968,6 +968,102 @@
   .rank-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .rank-score { font-family: 'Playfair Display', serif; font-weight: 700; }
 
+  /* ========== SCREEN FLASH (vignette-puls bij events) ========== */
+  #screen-flash {
+    position: fixed;
+    inset: 0;
+    z-index: 400;
+    pointer-events: none;
+    opacity: 0;
+  }
+  #screen-flash.flash-gold {
+    background: radial-gradient(ellipse at center, rgba(212,168,67,0) 40%, rgba(212,168,67,0.38) 100%);
+    animation: screenFlash 0.8s ease-out;
+  }
+  #screen-flash.flash-red {
+    background: radial-gradient(ellipse at center, rgba(192,57,43,0) 30%, rgba(192,57,43,0.5) 100%);
+    animation: screenFlash 0.9s ease-out;
+  }
+  @keyframes screenFlash {
+    0% { opacity: 0; }
+    18% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+
+  /* ========== RISK METER (tragiek-kans volgende worp) ========== */
+  #risk-meter {
+    font-size: 11px;
+    color: rgba(245,240,232,0.5);
+    margin-top: 2px;
+    min-height: 14px;
+  }
+  #risk-meter b { font-family: 'Playfair Display', serif; }
+
+  /* ========== TURN SCORE POP ========== */
+  @keyframes scorePop {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.22); }
+    100% { transform: scale(1); }
+  }
+  #turn-score-value.pop { animation: scorePop 0.35s ease; }
+
+  /* ========== FINAL ROUND PULS ========== */
+  @keyframes finalPulse {
+    0%, 100% { box-shadow: 0 0 6px rgba(192,57,43,0.35); }
+    50% { box-shadow: 0 0 20px rgba(192,57,43,0.85); }
+  }
+  #player-indicator.final-round { animation: finalPulse 1.6s ease-in-out infinite; }
+
+  /* ========== SETUP: AMBIENT GLOW + TITLE SHINE ========== */
+  #setup-screen::before {
+    content: '';
+    position: absolute;
+    inset: -10%;
+    background: radial-gradient(ellipse at 50% 55%, rgba(26,92,42,0.55), transparent 60%);
+    animation: ambientGlow 7s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes ambientGlow {
+    0%, 100% { opacity: 0.5; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.07); }
+  }
+  @supports (-webkit-background-clip: text) {
+    #setup-box h1 {
+      background: linear-gradient(105deg, var(--gold) 30%, #f8e9b0 50%, var(--gold) 70%);
+      background-size: 220% 100%;
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-shadow: none;
+      filter: drop-shadow(0 2px 12px rgba(0,0,0,0.55));
+      animation: titleShine 4s ease-in-out infinite;
+    }
+    @keyframes titleShine {
+      0%, 100% { background-position: 180% 0; }
+      50% { background-position: -20% 0; }
+    }
+  }
+
+  /* ========== BUTTON SHEEN (GOOIEN) ========== */
+  .btn { position: relative; overflow: hidden; }
+  .btn-roll::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -160%;
+    width: 55%;
+    height: 100%;
+    transform: skewX(-22deg);
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.28), transparent);
+    animation: btnSheen 3.4s ease-in-out infinite;
+    pointer-events: none;
+  }
+  .btn-roll:disabled::after { display: none; }
+  @keyframes btnSheen {
+    0%, 55% { left: -160%; }
+    100% { left: 260%; }
+  }
+
   /* ========== DESKTOP ENHANCEMENTS ========== */
   @media (min-width: 901px) {
     #table {
@@ -1098,6 +1194,7 @@
     <div id="turn-score-value">0</div>
     <div id="min-warning">Min. 350</div>
     <div id="selected-score">Selecteer dobbelstenen</div>
+    <div id="risk-meter"></div>
   </div>
 
   <div id="message"></div>
@@ -1215,6 +1312,8 @@
   </div>
 </div>
 
+<div id="screen-flash"></div>
+
 <!-- WIN OVERLAY -->
 <div id="win-overlay">
   <canvas id="confetti-canvas"></canvas>
@@ -1267,6 +1366,45 @@ function escapeHtml(s) {
 // Trilfeedback op mobiel (stil genegeerd waar niet ondersteund)
 function vibrate(pattern) {
   try { if (navigator.vibrate) navigator.vibrate(pattern); } catch(e) {}
+}
+
+// Korte fullscreen vignette-flash ('gold' of 'red') voor grote momenten
+function flashScreen(kind) {
+  const el = document.getElementById('screen-flash');
+  if (!el) return;
+  el.className = '';
+  void el.offsetWidth;  // herstart de CSS-animatie
+  el.className = 'flash-' + kind;
+}
+
+// Speciale combinaties die een eigen toast verdienen
+function comboLabel(values) {
+  if (values.length === 6 && new Set(values).size === 6) return 'STRAAT! +1000';
+  const counts = [0,0,0,0,0,0,0];
+  values.forEach(v => counts[v]++);
+  if (counts[1] >= 3) return 'DRIE ENEN! +1000';
+  return null;
+}
+
+// Tragiek-kans voor de volgende worp, per aantal dobbelstenen (1..6).
+// Zelfde getallen als de strategie-overlay.
+const RISK_PCT = [0, 66.7, 44.4, 27.8, 15.7, 7.7, 3.1];
+function updateRiskMeter() {
+  const el = document.getElementById('risk-meter');
+  if (!el) return;
+  let diceLeft = 0;
+  if (state.phase === 'select' && !state.gameOver) {
+    const sel = state.dice.filter(d => d.selected && !d.kept);
+    if (sel.length > 0 && isValidSelection(sel)) {
+      const free = state.dice.filter(d => !d.kept).length;
+      diceLeft = free - sel.length;
+      if (diceLeft === 0) diceLeft = 6;  // en-door: alle 6 opnieuw
+    }
+  }
+  if (!diceLeft) { el.textContent = ''; return; }
+  const pct = RISK_PCT[diceLeft];
+  const color = pct >= 30 ? '#e07040' : pct >= 12 ? '#e8c060' : '#7CB342';
+  el.innerHTML = `Tragiek-kans: <b style="color:${color}">${pct.toLocaleString('nl-NL')}%</b>`;
 }
 
 // ===================== PERSISTENTE STATISTIEKEN =====================
@@ -1437,8 +1575,13 @@ function startGame() {
   document.getElementById('setup-screen').classList.add('hidden');
   buildScoreboard();
   updatePlayerIndicator();
-  resizeCanvas();
+  // resizeCanvas() bestond niet (3D-renderer schaalt zichzelf via
+  // ResizeObserver) — de aanroep gooide een ReferenceError die de rest
+  // van startGame stilletjes afbrak. Kept-bar maat wel even syncen.
+  syncKeptBarSize();
   drawAllDice();
+  // Cinematische camera-intro: glijdt van overzicht naar speelpositie
+  if (window.Renderer3D && window.Renderer3D.playIntro) window.Renderer3D.playIntro();
 }
 
 function buildScoreboard() {
@@ -1686,12 +1829,14 @@ function doRoll() {
 
   state.phase = 'rolling';
   document.getElementById('instruction').textContent = '';
+  updateRiskMeter();
 
   animateRoll(() => {
     const freeDice = state.dice.filter(d => !d.kept);
     const freeValues = freeDice.map(d => d.value);
     if (!canScoreAny(freeValues)) {
       showMessage('DE TRAGIEK!', true);
+      flashScreen('red');
       vibrate([70, 50, 70]);
       if (!isBotTurn()) { stats.farkles++; saveStats(); }
       state.turnScore = 0;
@@ -1731,6 +1876,13 @@ function rollDice() {
   if (state.phase === 'select') {
     const sel = state.dice.filter(d => d.selected && !d.kept);
     if (sel.length > 0 && isValidSelection(sel)) {
+      // Toast voor bijzondere combinaties (straat / drie enen)
+      const combo = comboLabel(sel.map(d => d.value));
+      if (combo) {
+        showMessage(combo, false);
+        flashScreen('gold');
+        vibrate(30);
+      }
       state.turnScore += state.selectedScore;
       state.selectedScore = 0;
       updateTurnDisplay();
@@ -1739,11 +1891,13 @@ function rollDice() {
       document.getElementById('btn-bank').disabled = true;
       animateSlideToKept(sel, () => {
         if (state.dice.every(d => d.kept)) {
-          showMessage('EN DOOR!', false);
+          if (!combo) showMessage('EN DOOR!', false);
+          flashScreen('gold');
           vibrate(40);
           setTimeout(() => { hideMessage(); state.dice = []; state.keptCount = 0; doRoll(); }, 1100);
           return;
         }
+        if (combo) setTimeout(() => hideMessage(), 900);
         setTimeout(() => doRoll(), 150);
       });
       return;
@@ -1927,6 +2081,13 @@ function flashScore(playerIdx, points) {
 
 function updateTurnDisplay() {
   const el = document.getElementById('turn-score-value');
+  const prev = el._lastVal || 0;
+  if (state.turnScore > prev) {
+    el.classList.remove('pop');
+    void el.offsetWidth;
+    el.classList.add('pop');
+  }
+  el._lastVal = state.turnScore;
   el.textContent = state.turnScore.toLocaleString('nl-NL');
   const w = document.getElementById('min-warning');
   if (state.turnScore > 0 && state.turnScore < MIN_TURN) {
@@ -1945,6 +2106,7 @@ function updateSelectedDisplay() {
     el.textContent = 'Selecteer';
     el.style.color = 'rgba(245,240,232,0.4)';
   }
+  updateRiskMeter();
 }
 
 function updatePlayerIndicator() {
@@ -1953,6 +2115,7 @@ function updatePlayerIndicator() {
   const indicator = document.getElementById('player-indicator');
   indicator.textContent = state.finalRound ? `${label} — LAATSTE RONDE` : label;
   indicator.style.borderColor = state.finalRound ? 'rgba(192,57,43,0.6)' : 'rgba(212,168,67,0.25)';
+  indicator.classList.toggle('final-round', state.finalRound);
   for (let i = 0; i < state.numPlayers; i++) {
     const row = document.getElementById(`row-p${i}`);
     if (row) row.classList.toggle('active', i === state.currentPlayer);
@@ -2221,6 +2384,7 @@ function endGame(winnerIndex) {
     </div>`).join('');
 
   overlay.classList.add('show');
+  flashScreen('gold');
   vibrate([80, 50, 80, 50, 160]);
 
   // Statistieken bijwerken
@@ -3059,6 +3223,83 @@ Renderer3D.faceImages = {};
   miniRenderer.dispose();
 })();
 
+// ---------------- Camera-intro (cinematische sweep bij spelstart) ----------------
+const CAM_PLAY_POS = new THREE.Vector3(0, 2.6, 1.85);
+const CAM_INTRO_POS = new THREE.Vector3(0, 4.8, 3.8);
+const CAM_LOOK_AT = new THREE.Vector3(0, 0, -0.8);
+let introState = null;
+Renderer3D.playIntro = function() {
+  introState = { t: 0, dur: 1.6 };
+};
+
+// ---------------- Landing-stof (sprite-pool) ----------------
+// Subtiele stofwolkjes als een dobbelsteen hard op het vilt slaat. Pool van
+// hergebruikte sprites — geen allocaties tijdens de worp.
+function makePuffTexture() {
+  const s = 64;
+  const c = document.createElement('canvas');
+  c.width = c.height = s;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(s/2, s/2, 0, s/2, s/2, s/2);
+  g.addColorStop(0, 'rgba(235,245,220,0.9)');
+  g.addColorStop(0.5, 'rgba(220,235,200,0.35)');
+  g.addColorStop(1, 'rgba(220,235,200,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, s, s);
+  return new THREE.CanvasTexture(c);
+}
+const puffTex = makePuffTexture();
+const PUFF_POOL = 36;
+const puffs = [];
+for (let i = 0; i < PUFF_POOL; i++) {
+  const m = new THREE.SpriteMaterial({
+    map: puffTex, transparent: true, depthWrite: false,
+    opacity: 0, blending: THREE.AdditiveBlending,
+  });
+  const sp = new THREE.Sprite(m);
+  sp.visible = false;
+  scene.add(sp);
+  puffs.push({ sp, vx: 0, vy: 0, vz: 0, life: 0, maxLife: 0.45, baseScale: 0.12, active: false });
+}
+let puffCursor = 0;
+function spawnPuffs(x, z, strength) {
+  const n = 4 + ((Math.random() * 3) | 0);
+  for (let k = 0; k < n; k++) {
+    const p = puffs[puffCursor];
+    puffCursor = (puffCursor + 1) % PUFF_POOL;
+    const a = Math.random() * Math.PI * 2;
+    const sp = 0.25 + Math.random() * 0.5 * strength;
+    p.vx = Math.cos(a) * sp;
+    p.vz = Math.sin(a) * sp;
+    p.vy = 0.10 + Math.random() * 0.18;
+    p.life = p.maxLife;
+    p.active = true;
+    p.baseScale = 0.10 + Math.random() * 0.08;
+    p.sp.position.set(x + Math.cos(a) * 0.06, FELT_TOP_Y + 0.03, z + Math.sin(a) * 0.06);
+    p.sp.visible = true;
+  }
+}
+function updatePuffs(dt) {
+  for (const p of puffs) {
+    if (!p.active) continue;
+    p.life -= dt;
+    if (p.life <= 0) {
+      p.active = false;
+      p.sp.visible = false;
+      p.sp.material.opacity = 0;
+      continue;
+    }
+    const f = p.life / p.maxLife;
+    p.sp.position.x += p.vx * dt;
+    p.sp.position.y += p.vy * dt;
+    p.sp.position.z += p.vz * dt;
+    p.vx *= 0.94; p.vz *= 0.94; p.vy *= 0.96;
+    p.sp.material.opacity = f * 0.45;
+    const s = p.baseScale * (1.6 - 0.6 * f);
+    p.sp.scale.set(s, s, s);
+  }
+}
+
 // Gouden selectie-ringen onder geselecteerde dobbelstenen
 const ringGeo = new THREE.TorusGeometry(DICE_SIZE * 0.78, 0.012, 12, 48);
 const ringMat = new THREE.MeshBasicMaterial({ color: 0xf0d078, transparent: true, opacity: 0.95 });
@@ -3271,7 +3512,6 @@ const IMPACT_THROTTLE_MS = 50;     // per dice
 
 diceBodies.forEach(b => {
   b.addEventListener('collide', (e) => {
-    if (!state.soundOn) return;
     const v = Math.abs(e.contact.getImpactVelocityAlongNormal());
     if (v < IMPACT_MIN_VEL) return;
     const now = performance.now();
@@ -3279,7 +3519,9 @@ diceBodies.forEach(b => {
     lastImpactAt.set(b, now);
     const matName = e.body.material && e.body.material.name;
     const kind = matName === 'felt' ? 'felt' : matName === 'wall' ? 'wall' : 'dice';
-    playCollisionSound(v, kind);
+    // Stofwolkje bij stevige landing op het vilt (ook met geluid uit)
+    if (kind === 'felt' && v > 1.1) spawnPuffs(b.position.x, b.position.z, Math.min(1, v / 4));
+    if (state.soundOn) playCollisionSound(v, kind);
   });
 });
 
@@ -3535,6 +3777,11 @@ const _stabUp = new CANNON.Vec3(0, 1, 0);
 function applyStabilizingTorque(body) {
   if (body.type !== CANNON.Body.DYNAMIC) return;
   if (body.sleepState !== CANNON.Body.AWAKE) return;
+  // Alleen dicht bij het vilt. Mid-air uitlijnen liet stenen al tijdens de
+  // val plat draaien → ze kwamen "dood" neer zonder te tuimelen. Gemeten in
+  // het headless harnas: deze gate + ruimere spawn-spreiding reduceert dode
+  // landingen (< 2,5 rad totale rotatie) van 10,2% naar 0,0%.
+  if (body.position.y > FELT_TOP_Y + DICE_SIZE * 1.2) return;
   // Bepaal welke face momenteel het meest naar +Y wijst.
   let bestDot = -Infinity;
   let bestNX = 0, bestNY = 0, bestNZ = 0;
@@ -3583,20 +3830,38 @@ function randomUniformQuaternion(out) {
   return out;
 }
 
+// Uniforme richting op de bol (Marsaglia 1972) — voor de spawn-spin.
+function randomUnitVec3() {
+  let x1, x2, s;
+  do {
+    x1 = Math.random() * 2 - 1;
+    x2 = Math.random() * 2 - 1;
+    s = x1 * x1 + x2 * x2;
+  } while (s >= 1);
+  const f = 2 * Math.sqrt(1 - s);
+  return [x1 * f, x2 * f, 1 - 2 * s];
+}
+
 Renderer3D.rollDice = function(indices, onSettle) {
   indices.forEach((i, k) => {
     const b = diceBodies[i];
     diceMeshes[i].visible = true;  // herstel zichtbaarheid (kan verborgen zijn na moveToKept)
     b.type = CANNON.Body.DYNAMIC;
     b.wakeUp();
-    // Spawn-spreiding > steen-grootte (0.40 > 0.36) + hoogte-stagger per steen,
-    // zodat de stenen niet als kluit tegelijk neerkomen en op/tegen elkaar
-    // botsen (bron van stapelen/leunen). Ze landen nu gespreid en na elkaar.
-    const slotX = (k - (indices.length - 1)/2) * 0.40;
+    // Spawn-spreiding RUIM boven hoek-tot-hoek bereik. Een geroteerde kubus
+    // reikt tot zijn omgeschreven bol (r = 0.5·√3·0.36 ≈ 0.31): twee buren op
+    // 0.40 (oud) konden dus IN elkaar spawnen, en de solver loste die
+    // penetratie op met een impuls die de spin doofde → steen viel "dood"
+    // omlaag zonder te tuimelen. Idem voor de voorwand op z=0.55: spawn-z
+    // 0.35±0.08 (oud) clipte met hoek-oriëntaties door die plane. Nu:
+    // dx 0.60 + dy-stagger 0.20 (3D-afstand ≈ 0.63 > 0.62 worst-case) en
+    // spawn-z 0.10 (max hoekbereik 0.49 < 0.55). Headless gemeten: dode
+    // landingen 10,2% → 0,0% over 2400 worpen.
+    const slotX = (k - (indices.length - 1)/2) * 0.60;
     b.position.set(
       slotX + (Math.random()-0.5) * 0.06,
-      FELT_TOP_Y + 1.00 + k * 0.10 + Math.random() * 0.18,
-      0.35 + (Math.random()-0.5) * 0.16,
+      FELT_TOP_Y + 1.00 + k * 0.20 + Math.random() * 0.18,
+      0.10 + (Math.random()-0.5) * 0.16,
     );
     randomUniformQuaternion(b.quaternion);
     b.velocity.set(
@@ -3604,11 +3869,11 @@ Renderer3D.rollDice = function(indices, onSettle) {
       -0.3 - Math.random() * 0.2,
       -0.5 - Math.random() * 0.3,
     );
-    b.angularVelocity.set(
-      (Math.random()-0.5) * 18,
-      (Math.random()-0.5) * 18,
-      (Math.random()-0.5) * 18,
-    );
+    // Gegarandeerde tuimel: uniforme as × 8–14 rad/s. Per-as uniform (oud,
+    // ±9/as) kon een bijna-nul spin loten — nóg een bron van dode worpen.
+    const [ax, ay, az] = randomUnitVec3();
+    const spinMag = 8 + Math.random() * 6;
+    b.angularVelocity.set(ax * spinMag, ay * spinMag, az * spinMag);
   });
   rollState.active = true;
   rollState.indices = indices.slice();
@@ -3736,6 +4001,26 @@ function finalizeRoll() {
 const clock = new THREE.Clock();
 function tick() {
   const dt = Math.min(clock.getDelta(), 1/30);
+
+  // Camera-intro sweep (eenmalig bij spelstart)
+  if (introState) {
+    introState.t += dt;
+    const p = Math.min(1, introState.t / introState.dur);
+    const e = 1 - Math.pow(1 - p, 3);  // easeOutCubic
+    camera.position.lerpVectors(CAM_INTRO_POS, CAM_PLAY_POS, e);
+    camera.lookAt(CAM_LOOK_AT);
+    if (p >= 1) introState = null;
+  }
+
+  // Stofwolkjes + zacht pulserende selectie-ringen (goedkoop, elke frame)
+  updatePuffs(dt);
+  const pulseT = performance.now() / 1000;
+  for (const ring of selectionRings) {
+    if (!ring.visible) continue;
+    const s = 1 + 0.05 * Math.sin(pulseT * 5);
+    ring.scale.set(s, s, 1);
+    ring.material.opacity = 0.72 + 0.23 * (0.5 + 0.5 * Math.sin(pulseT * 5));
+  }
 
   // Eind-garantie tween: kantel resterende scheve/leunende dice zacht naar hun
   // vlakke stand (zie finalizeRoll). Loopt vóór de gewone physics-step en slaat
