@@ -1998,11 +1998,14 @@ function finishBankContinue() {
 function nextPlayer() {
   const nextP = (state.currentPlayer + 1) % state.numPlayers;
 
-  // Eindronde voorbij zodra de beurt terugkomt bij de speler die hem triggerde:
-  // dan heeft elke andere speler precies één laatste beurt gehad. (Voorheen
-  // eindigde de ronde bij speler 0, waardoor spelers vóór de trigger hun
-  // laatste beurt misliepen.)
-  if (state.finalRound && nextP === state.finalRoundTrigger) {
+  // Eindronde eerlijk afsluiten: nadat speler A bij beurt x over de drempel
+  // gaat, hebben de spelers vóór/op A's plek al x beurten gehad, en de spelers
+  // ná A pas x-1. Alleen die laatste groep (index > trigger) mag nog één keer
+  // gooien zodat iedereen exact evenveel beurten heeft gehad. Zodra de beurt
+  // wrap't naar een speler met index <= trigger (die dus al x beurten had),
+  // is het spel voorbij. (Voorheen kreeg iedereen nog een beurt, waardoor de
+  // spelers vóór de trigger een beurt te veel kregen.)
+  if (state.finalRound && nextP <= state.finalRoundTrigger) {
     state.gameOver = true;
     let maxScore = -1;
     let winner = -1;
