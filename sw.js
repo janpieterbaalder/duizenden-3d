@@ -1,9 +1,8 @@
 // Service worker — maakt Duizenden installeerbaar en offline speelbaar.
 // Strategie: network-first voor navigatie (zo komen updates direct door),
 // cache-first voor al het overige. De app-shell wordt bij install gecached;
-// CDN-modules (three/cannon-es via unpkg) en fonts worden bij het eerste
-// gebruik in de runtime-cache gezet (opaque responses zijn prima).
-const CACHE = 'duizenden-v3';
+// De lokale Three.js/cannon-es-modules worden samen met de shell gecachet.
+const CACHE = 'duizenden-v4';
 const SHELL = [
   './',
   './index.html',

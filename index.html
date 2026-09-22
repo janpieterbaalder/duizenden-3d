@@ -2841,7 +2841,7 @@ const renderer = new THREE.WebGLRenderer({ canvas: canvas3D, antialias: true });
 let sceneDirty = true;
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));   // cap op 1.5: zichtbaar scherp op telefoon, halveert pixels t.o.v. native 3x
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.VSMShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;     // iets minder belicht → dice ogen rustiger
@@ -2854,7 +2854,7 @@ environmentRoom.dispose();
 pmrem.dispose();
 
 // ---------------- Verlichting ----------------
-scene.add(new THREE.HemisphereLight(0xdbe8ed, 0x292015, 0.65));
+scene.add(new THREE.HemisphereLight(0xdbe8ed, 0x292015, 1.05));
 
 const key = new THREE.SpotLight(0xffe4bd, 48, 12, Math.PI / 4, 0.8, 2);
 key.position.set(-1.4, 3.8, 0.9);
@@ -2866,7 +2866,8 @@ const SHADOW_RES = IS_TOUCH ? 1024 : 2048;
 key.shadow.mapSize.set(SHADOW_RES, SHADOW_RES);
 key.shadow.bias = -0.00015;
 key.shadow.normalBias = 0.008;
-key.shadow.radius = 6;
+key.shadow.radius = 3;
+key.shadow.blurSamples = 8;
 key.shadow.camera.near = 0.5;
 key.shadow.camera.far = 6;
 scene.add(key);
@@ -2898,7 +2899,7 @@ function makeWatermarkTexture() {
   c.width = c.height = size;
   const ctx = c.getContext('2d');
   ctx.clearRect(0, 0, size, size);
-  ctx.fillStyle = 'rgba(255,255,255,0.06)';
+  ctx.fillStyle = 'rgba(255,255,255,0.025)';
   ctx.font = '900 230px "Playfair Display", "Georgia", serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -2914,9 +2915,9 @@ const felt = makeSurface('felt');
 const tableTopGeo = new THREE.CylinderGeometry(2.2, 2.2, 0.08, 96);
 const tableTopMat = new THREE.MeshPhysicalMaterial({
   ...felt,
-  bumpScale: 0.00018,
+  bumpScale: 0.00025,
   roughness: 0.92,
-  sheen: 0.35,
+  sheen: 0.22,
   sheenColor: new THREE.Color(0x759580),
   sheenRoughness: 0.7,
 });
@@ -2942,8 +2943,8 @@ const railGeo = new THREE.TorusGeometry(2.18, 0.10, 24, 96);
 const railMat = new THREE.MeshPhysicalMaterial({
   ...makeSurface('wood'),
   bumpScale: 0.0015,
-  roughness: 0.34,
-  clearcoat: 0.45,
+  roughness: 0.45,
+  clearcoat: 0.2,
   clearcoatRoughness: 0.26,
   metalness: 0,
 });
@@ -2990,6 +2991,11 @@ function makeDieGeometry(size, radius, segments = 64) {
   }
   pos.needsUpdate = true;
   geo.computeVertexNormals();
+  return geo;
+}
+
+function smoothDieNormals(geo) {
+  const pos = geo.attributes.position;
   // Smooth duplicate edge-vertex normalen voor zachte randen
   const normals = geo.attributes.normal;
   const m = new Map();
@@ -3007,7 +3013,6 @@ function makeDieGeometry(size, radius, segments = 64) {
     for (const i of idxs) normals.setXYZ(i, ax, ay, az);
   }
   normals.needsUpdate = true;
-  return geo;
 }
 
 const PIP_POSITIONS = {
@@ -3127,18 +3132,20 @@ function makeDieMaterials() {
   // per-dobbelsteen emissive kunnen instellen voor selectie-glow.
   return faceMaterialTemplates.map(({ map, bumpMap }) => new THREE.MeshPhysicalMaterial({
     map, bumpMap, bumpScale: 0.002,
-    envMapIntensity: 0.75,
-    roughness: 0.34,
-    clearcoat: 0.65,
-    clearcoatRoughness: 0.2,
+    envMapIntensity: 0.45,
+    roughness: 0.27,
+    clearcoat: 0.3,
+    clearcoatRoughness: 0.28,
     metalness: 0.0,
     emissive: 0x000000,
     emissiveIntensity: 0.0,
   }));
 }
 
-const dieGeo = makeDieGeometry(DICE_SIZE, DICE_SIZE * 0.07, IS_TOUCH ? 40 : 64);
-indentPips(dieGeo, DICE_SIZE/2, DICE_SIZE * 0.018, DICE_SIZE * 0.064);
+const dieGeo = makeDieGeometry(DICE_SIZE, DICE_SIZE * 0.18, IS_TOUCH ? 40 : 64);
+indentPips(dieGeo, DICE_SIZE/2, DICE_SIZE * 0.04, DICE_SIZE * 0.068);
+// Recompute first, then weld the visual normals after carving the pips.
+smoothDieNormals(dieGeo);
 
 const DICE_COUNT = 6;
 const diceMeshes = [];

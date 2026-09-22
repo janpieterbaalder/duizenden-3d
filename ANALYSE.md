@@ -2,6 +2,14 @@
 
 Datum: 22 september 2026. Onderzocht: broncode, grafische scène, worpsimulatie, scorefuncties, botselecties, bediening, PWA-cache en browsergedrag.
 
+## Visuele herziening na feedback
+
+De eerste versie maakte de stenen te hoekig en voegde een storende houten balk dwars over het laken toe. Die balk is verwijderd. De randen van de stenen hebben nu een ruimere afrondingsradius (18% van de steengrootte in plaats van 7%). De vlaknormalen worden pas na het uitsnijden van de ogen gladgestreken; eerder ging die correctie verloren door het opnieuw berekenen van de normalen.
+
+De ogen zijn dieper, de lakreflectie is terughoudender, het hout donkerder en het vilt heeft een fijnere zichtbare structuur in een warmere groentint. Zachtere VSM-schaduwen en meer omgevingslicht verminderen het harde computerrendereffect. De drie visuele versies zijn vergeleken met dezelfde camera en vaste steenposities. Alle zes browsercontroles zijn opnieuw geslaagd (44,6 seconden). Werpinstellingen en botsingsgeluid zijn ongewijzigd. De service-worker-cache is verhoogd naar v4.
+
+De onzichtbare voorbegrenzing van de bestaande worpfysica blijft behouden, zodat het goedgekeurde werpgedrag niet verandert. Deze visuele herziening is dus geen herkalibratie van de botsingswereld.
+
 ## Beoordeling van het oorspronkelijke spel
 
 Het spel heeft een sterke functionele basis. De uitkomst wordt afgelezen uit de oriëntatie van de fysieke dobbelstenen. De simulatie gebruikt vaste tijdstappen, interpolatie, contactmaterialen, slaapdetectie en een geometrisch symmetrische botsingsvorm. De logica ondersteunt lokale multiplayer en drie botniveaus; de expertvariant vergelijkt de verwachte waarde van doorgooien met pakken. Namen worden bij het genereren van scorebord en eindstand ontsmet met `escapeHtml`.
@@ -16,7 +24,7 @@ Het grootste verschil tussen de bestaande presentatie en een geloofwaardige echt
 | Kunsthars en ogen | Bumpsterkte 0,16 tegenover een steengrootte van 0,36; de visuele reliëfwerking was buiten verhouding. | Subtiel reliëf, ondiepe geometrische pipuitsparingen, gecontroleerde clearcoat en ruwheid. De ogen blijven afleesbaar. |
 | Vilt | Gekleurde ruis werd ook als hoogtemap gebruikt; de bumptextuur erfde de kleurcodering. | Losse kleur- en hoogtekaarten met fijne vezel-/weefstructuur. Hoogtekaarten worden als lineaire data behandeld. |
 | Hout | Effen donkerbruine rail, zonder nerf. | Procedurele houtnerf, fijne reliëfvariatie en gematigde lakglans. Hout blijft een niet-metallisch materiaal. |
-| Tafel | Onzichtbare fysieke voorwand bij z=0,55 veroorzaakte botsingen zonder zichtbaar object. | Zichtbare houten stop met voorvlak op dezelfde positie, messing randdetails en instanced stiksels. |
+| Tafel | Onzichtbare fysieke voorwand bij z=0,55 veroorzaakte botsingen zonder zichtbaar object. | Messing randdetails en instanced stiksels. De aanvankelijk toegevoegde houten stop is na feedback verwijderd; de bestaande werpbegrenzing blijft behouden. |
 | Licht | Centraal licht en beperkt omgevingslicht maakten materiaalverschillen minder leesbaar. | Schuin geplaatst warm hoofdlicht, hemisfeerinvulling, reflectieomgeving, aangepaste belichting en schaduwbias. |
 | Bewaren | `moveToKept` verborg stenen onmiddellijk ondanks de aangekondigde animatie. | Korte optil-/wegpakbeweging. Het lichaam wordt vooraf uit de fysica verwijderd; de callback volgt na de animatie. |
 | Effecten | Relatief nadrukkelijke stofwolken en zelfoplichtende selectie. | Veel subtieler stof en selectie, respect voor minder-bewegingvoorkeuren bij intro, wegpakken en confetti. |
