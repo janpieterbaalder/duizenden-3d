@@ -4,7 +4,7 @@
   "description": "Duizenden met Buist: fysiek 3D-dobbelspel",
   "scripts": {
     "start": "node tools/serve.cjs",
-    "test": "node --test tools/game.test.cjs",
+    "test": "node --test tools/game.test.cjs tools/die-geometry.test.mjs",
     "test:browser": "playwright test",
     "test:physics": "node tools/physics-harness.mjs 2000"
   },
