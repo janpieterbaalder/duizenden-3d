@@ -2819,6 +2819,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import * as CANNON from 'cannon-es';
 import { makeSurface, addTableDetails } from './materials.js';
+import { makeDieGeometry, restoreSphereNormals } from './die-geometry.mjs';
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
 const Renderer3D = { ready: false };
@@ -2976,45 +2977,6 @@ scene.add(floor);
 const DICE_SIZE = 0.36;
 const FELT_TOP_Y = 0.04;
 
-function makeDieGeometry(size, radius, segments = 64) {
-  const geo = new THREE.BoxGeometry(size, size, size, segments, segments, segments);
-  const pos = geo.attributes.position;
-  const core = size / 2 - radius;
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
-    const cx = THREE.MathUtils.clamp(x, -core, core);
-    const cy = THREE.MathUtils.clamp(y, -core, core);
-    const cz = THREE.MathUtils.clamp(z, -core, core);
-    const length = Math.hypot(x-cx, y-cy, z-cz) || 1;
-    pos.setXYZ(i, cx + (x-cx)*radius/length,
-      cy + (y-cy)*radius/length, cz + (z-cz)*radius/length);
-  }
-  pos.needsUpdate = true;
-  geo.computeVertexNormals();
-  return geo;
-}
-
-function smoothDieNormals(geo) {
-  const pos = geo.attributes.position;
-  // Smooth duplicate edge-vertex normalen voor zachte randen
-  const normals = geo.attributes.normal;
-  const m = new Map();
-  for (let i = 0; i < pos.count; i++) {
-    const k = pos.getX(i).toFixed(5)+','+pos.getY(i).toFixed(5)+','+pos.getZ(i).toFixed(5);
-    if (!m.has(k)) m.set(k, []);
-    m.get(k).push(i);
-  }
-  for (const idxs of m.values()) {
-    if (idxs.length < 2) continue;
-    let ax=0, ay=0, az=0;
-    for (const i of idxs) { ax += normals.getX(i); ay += normals.getY(i); az += normals.getZ(i); }
-    const l = Math.sqrt(ax*ax + ay*ay + az*az) || 1;
-    ax /= l; ay /= l; az /= l;
-    for (const i of idxs) normals.setXYZ(i, ax, ay, az);
-  }
-  normals.needsUpdate = true;
-}
-
 const PIP_POSITIONS = {
   1: [[0.5,0.5]],
   2: [[0.32,0.32],[0.68,0.68]],
@@ -3071,7 +3033,7 @@ function makeDieFaceTextures(pipCount) {
   const cc = document.createElement('canvas'); cc.width = cc.height = s;
   const ctx = cc.getContext('2d');
   // Iets donkerder bordeauxrood (was #c01818) — dice ogen minder fel/helder.
-  ctx.fillStyle = '#8a1212';
+  ctx.fillStyle = '#99101c';
   ctx.fillRect(0, 0, s, s);
   const img = ctx.getImageData(0,0,s,s);
   const d = img.data;
@@ -3092,15 +3054,15 @@ function makeDieFaceTextures(pipCount) {
   PIP_POSITIONS[pipCount].forEach(([x, y]) => {
     const cx = x * s, cy = y * s;
     const rim = ctx.createRadialGradient(cx, cy, r*0.80, cx, cy, r*1.35);
-    rim.addColorStop(0, 'rgba(40,0,0,0.85)');
-    rim.addColorStop(0.6, 'rgba(40,0,0,0.35)');
+    rim.addColorStop(0, 'rgba(40,0,0,0.35)');
+    rim.addColorStop(0.6, 'rgba(40,0,0,0.12)');
     rim.addColorStop(1, 'rgba(40,0,0,0)');
     ctx.fillStyle = rim;
     ctx.beginPath(); ctx.arc(cx, cy, r*1.35, 0, Math.PI*2); ctx.fill();
     const g = ctx.createRadialGradient(cx, cy - r*0.2, r*0.05, cx, cy + r*0.1, r);
-    g.addColorStop(0, '#f6f1e2');
-    g.addColorStop(0.7, '#e0d8c3');
-    g.addColorStop(1, '#a09680');
+    g.addColorStop(0, '#e9dfa5');
+    g.addColorStop(0.7, '#d7c98d');
+    g.addColorStop(1, '#a49762');
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
 
@@ -3131,10 +3093,10 @@ function makeDieMaterials() {
   // Eigen MeshPhysicalMaterial per dobbelsteen (gedeelde textures), zodat we
   // per-dobbelsteen emissive kunnen instellen voor selectie-glow.
   return faceMaterialTemplates.map(({ map, bumpMap }) => new THREE.MeshPhysicalMaterial({
-    map, bumpMap, bumpScale: 0.002,
-    envMapIntensity: 0.45,
-    roughness: 0.27,
-    clearcoat: 0.3,
+    map, bumpMap, bumpScale: 0.0005,
+    envMapIntensity: 0.65,
+    roughness: 0.38,
+    clearcoat: 0.18,
     clearcoatRoughness: 0.28,
     metalness: 0.0,
     emissive: 0x000000,
@@ -3142,10 +3104,10 @@ function makeDieMaterials() {
   }));
 }
 
-const dieGeo = makeDieGeometry(DICE_SIZE, DICE_SIZE * 0.18, IS_TOUCH ? 40 : 64);
-indentPips(dieGeo, DICE_SIZE/2, DICE_SIZE * 0.04, DICE_SIZE * 0.068);
-// Recompute first, then weld the visual normals after carving the pips.
-smoothDieNormals(dieGeo);
+const dieGeo = makeDieGeometry(DICE_SIZE, IS_TOUCH);
+indentPips(dieGeo, DICE_SIZE/2, DICE_SIZE * 0.012, DICE_SIZE * 0.068);
+// Preserve the flat circular cuts and radial sphere shading after carving.
+restoreSphereNormals(dieGeo);
 
 const DICE_COUNT = 6;
 const diceMeshes = [];

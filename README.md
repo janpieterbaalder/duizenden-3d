@@ -44,6 +44,7 @@ Op telefoon/tablet: speel in liggende stand. Via HTTPS is het spel **installeerb
 | --- | --- |
 | `index.html` | Volledige app: UI, spel-logica, bot-AI en 3D-renderer |
 | `materials.js` | Procedureel vilt en hout, messing tafelranden en stiksels |
+| `die-geometry.mjs` | Bol met zes gelijke cirkelvormige snijvlakken, volgens de fotoreferentie |
 | `vendor/` | Vastgelegde Three.js/cannon-es-bibliotheken en licenties; geen CDN nodig |
 | `sw.js` | Service worker (cache-first, offline support) |
 | `manifest.webmanifest` / `icon.svg` | PWA-installatie |
@@ -67,7 +68,7 @@ De 3D-renderer (Three.js + cannon-es, geladen via een lokale importmap) levert d
 
 De tafel heeft houtnerf, fijn geweven vilt, stiksels en messing inleg. De afgeronde kunstharsstenen hebben geometrisch verzonken ogen en reageren op een warme hoofdverlichting met koel invullicht. Bewaren krijgt een korte wegpakanimatie; botsingsgeluid volgt materiaal, inslagsnelheid en stereopositie. De bestaande worpfysica is behouden.
 
-De geometrie telt 49.152 driehoeken per steen op desktop en 19.200 op touch-apparaten, tegenover 442.368 voorheen. Stilstaande scènes worden niet onnodig opnieuw getekend. Minder-bewegingvoorkeuren worden gerespecteerd. Alle noodzakelijke spelbestanden worden vooraf gecachet voor offline gebruik. Externe webfonts zijn vervangen door lokale serif-fallbacks.
+De dobbelsteen is een bol met zes even grote ronde snijvlakken. Tussen aangrenzende vlakken blijft een smalle strook boloppervlak zichtbaar. De geometrie telt 60.672 driehoeken per steen op desktop en 33.984 op touch-apparaten, tegenover oorspronkelijk 442.368. Stilstaande scènes worden niet onnodig opnieuw getekend. Minder-bewegingvoorkeuren worden gerespecteerd. Alle noodzakelijke spelbestanden worden vooraf gecachet voor offline gebruik. Externe webfonts zijn vervangen door lokale serif-fallbacks.
 
 ### Tests
 

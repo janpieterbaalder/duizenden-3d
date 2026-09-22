@@ -4,6 +4,14 @@ Datum: 22 september 2026. Onderzocht: broncode, grafische scène, worpsimulatie,
 
 ## Visuele herziening na feedback
 
+### Definitieve vorm op basis van de aangeleverde foto
+
+De gebruiker specificeerde vervolgens een bol die aan zes kanten is afgesneden, met zes even grote cirkelvlakken die elkaar net niet raken. De afgeronde kubus is daarom vervangen door een aparte geometriebouwer in `die-geometry.mjs`. De snijvlakken liggen op afstand h van het middelpunt; de bolstraal is 1,395h. De cirkelstraal is √(R² − h²). Omdat R kleiner is dan √2h raken aangrenzende cirkels elkaar niet. De platte cirkels en bolstroken hebben afzonderlijke oppervlaktenormalen, zodat de vorm ook in reflecties correct leesbaar blijft.
+
+De nieuwe vorm heeft een helderder rood materiaal, warmer crèmekleurige ogen en ondiepere uitsparingen volgens de referentie. Desktop en touch hebben respectievelijk 60.672 en 33.984 driehoeken per steen. Aanvullende tests controleren alle zes cirkels, de afstand tussen aangrenzende snijvlakken, de bolstraal van iedere gebogen vertex, symmetrie en de richting van alle driehoeken. Gooien, geluid en de bestaande botsingsvorm zijn niet gewijzigd. De botsingsvorm blijft dus een benadering van het zichtbare model. Cacheversie v5 bevat ook de nieuwe geometriebibliotheek.
+
+### Eerdere aanpassing
+
 De eerste versie maakte de stenen te hoekig en voegde een storende houten balk dwars over het laken toe. Die balk is verwijderd. De randen van de stenen hebben nu een ruimere afrondingsradius (18% van de steengrootte in plaats van 7%). De vlaknormalen worden pas na het uitsnijden van de ogen gladgestreken; eerder ging die correctie verloren door het opnieuw berekenen van de normalen.
 
 De ogen zijn dieper, de lakreflectie is terughoudender, het hout donkerder en het vilt heeft een fijnere zichtbare structuur in een warmere groentint. Zachtere VSM-schaduwen en meer omgevingslicht verminderen het harde computerrendereffect. De drie visuele versies zijn vergeleken met dezelfde camera en vaste steenposities. Alle zes browsercontroles zijn opnieuw geslaagd (44,6 seconden). Werpinstellingen en botsingsgeluid zijn ongewijzigd. De service-worker-cache is verhoogd naar v4.

@@ -2,7 +2,7 @@
 // Strategie: network-first voor navigatie (zo komen updates direct door),
 // cache-first voor al het overige. De app-shell wordt bij install gecached;
 // De lokale Three.js/cannon-es-modules worden samen met de shell gecachet.
-const CACHE = 'duizenden-v4';
+const CACHE = 'duizenden-v5';
 const SHELL = [
   './',
   './index.html',
@@ -10,6 +10,7 @@ const SHELL = [
   './icon.svg',
   './sounds/win-jackpot.ogg',
   './materials.js',
+  './die-geometry.mjs',
   './vendor/three.module.js',
   './vendor/RoomEnvironment.js',
   './vendor/cannon-es.js',
