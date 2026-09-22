@@ -1,13 +1,13 @@
 # Duizenden 3D 🎲
 
-*Duizenden met Buist* — het klassieke dobbelspel (Farkle-variant) als 3D-webapp, met echte physics, slimme bots en hot-seat multiplayer. Volledig client-side: één HTML-bestand, geen build-stap, geen server nodig.
+*Duizenden met Buist* — het klassieke dobbelspel (Farkle-variant) als 3D-webapp, met echte physics, slimme bots en hot-seat multiplayer. Volledig client-side, zonder build-stap. Serveer de bestanden via HTTP(S).
 
 ## Spelen
 
-Open `index.html` in een moderne browser, of serveer de map lokaal:
+Serveer de map lokaal (rechtstreeks openen via `file://` werkt niet betrouwbaar met JavaScript-modules):
 
 ```sh
-npx serve .
+npm start
 # of
 python3 -m http.server
 ```
@@ -23,7 +23,7 @@ Op telefoon/tablet: speel in liggende stand. Via HTTPS is het spel **installeerb
 - Minimaal **350 punten** per beurt om te mogen pakken.
 - Geen score in een worp? *De tragiek!* — alle beurtpunten weg.
 - Alle 6 bewaard? **En door!** — gooi opnieuw met alle 6.
-- Zodra iemand 10.000 haalt, krijgt elke andere speler nog precies één laatste beurt; de hoogste score wint.
+- Zodra iemand 10.000 haalt, wordt de lopende ronde uitgespeeld: spelers ná de drempelspeler komen nog aan de beurt. Zo krijgt iedereen evenveel beurten; de hoogste score wint. Dit is de bestaande huisregel van deze implementatie.
 
 ## Features
 
@@ -34,7 +34,7 @@ Op telefoon/tablet: speel in liggende stand. Via HTTPS is het spel **installeerb
 - 👥 **Hot-seat multiplayer** — 2 t/m 11 spelers met eigen namen.
 - 📊 **Statistieken** — spellen, overwinningen, hoogste beurt/eindscore en tragieks, bewaard in `localStorage`.
 - 🏆 **Eindstand-ranking**, voortgangsbalken naar 10.000 en score-animaties.
-- ⌨️ **Sneltoetsen** (desktop): Spatie = gooien, Enter = pakken, Esc = sluiten.
+- ⌨️ **Sneltoetsen** (desktop): 1–6 = steen selecteren, Spatie = gooien, Enter = pakken, Esc = sluiten.
 - 📳 Trilfeedback op mobiel, realistische collision-audio (Web Audio) en CC0-samples van [Kenney.nl](https://kenney.nl) (zie `sounds/CREDITS.txt`).
 - 📱 **PWA** — manifest + service worker: installeerbaar en offline speelbaar.
 
@@ -43,6 +43,8 @@ Op telefoon/tablet: speel in liggende stand. Via HTTPS is het spel **installeerb
 | Bestand | Inhoud |
 | --- | --- |
 | `index.html` | Volledige app: UI, spel-logica, bot-AI en 3D-renderer |
+| `materials.js` | Procedureel vilt en hout, messing tafelranden en stiksels |
+| `vendor/` | Vastgelegde Three.js/cannon-es-bibliotheken en licenties; geen CDN nodig |
 | `sw.js` | Service worker (cache-first, offline support) |
 | `manifest.webmanifest` / `icon.svg` | PWA-installatie |
 | `sounds/` | CC0-audiosamples |
@@ -59,4 +61,21 @@ node tools/physics-harness.mjs 2000
 
 Wijzig je physics-parameters in `index.html`, werk dan ook de `DEFAULTS` in het harnas bij en draai het opnieuw.
 
-De 3D-renderer (Three.js + cannon-es, geladen via unpkg-importmap) levert de worp-uitkomsten; de klassieke script-sectie blijft de bron van waarheid voor scores, selectie en bot-AI. De expert-bot gebruikt een vooraf berekende V-tabel (verwachte beurtwaarde per toestand) uit dynamic programming over alle mogelijke worpen.
+De 3D-renderer (Three.js + cannon-es, geladen via een lokale importmap) levert de worp-uitkomsten; de klassieke script-sectie blijft de bron van waarheid voor scores, selectie en bot-AI. De expert-bot gebruikt een vooraf berekende V-tabel (verwachte beurtwaarde per toestand) uit dynamic programming over alle mogelijke worpen.
+
+### Realisme en betrouwbaarheid
+
+De tafel heeft houtnerf, fijn geweven vilt, stiksels en messing inleg. De afgeronde kunstharsstenen hebben geometrisch verzonken ogen en reageren op een warme hoofdverlichting met koel invullicht. Bewaren krijgt een korte wegpakanimatie; botsingsgeluid volgt materiaal, inslagsnelheid en stereopositie. De bestaande worpfysica is behouden.
+
+De geometrie telt 49.152 driehoeken per steen op desktop en 19.200 op touch-apparaten, tegenover 442.368 voorheen. Stilstaande scènes worden niet onnodig opnieuw getekend. Minder-bewegingvoorkeuren worden gerespecteerd. Alle noodzakelijke spelbestanden worden vooraf gecachet voor offline gebruik. Externe webfonts zijn vervangen door lokale serif-fallbacks.
+
+### Tests
+
+```sh
+npm ci
+npm test
+npm run test:browser  # vereist geïnstalleerd Google Chrome
+npm run test:physics
+```
+
+De browsertests starten indien nodig hun eigen lokale server. Zie [ANALYSE.md](ANALYSE.md) voor bevindingen, testresultaten en beperkingen. De statistische fysicatest is een steekproef, geen bewijs van perfecte eerlijkheid. Een enkele overschrijding van de chi²-grens is ook bij eerlijke stenen mogelijk.

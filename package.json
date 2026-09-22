@@ -1,0 +1,29 @@
+{
+  "name": "duizenden-3d",
+  "version": "1.0.0",
+  "description": "Duizenden met Buist: fysiek 3D-dobbelspel",
+  "scripts": {
+    "start": "node tools/serve.cjs",
+    "test": "node --test tools/game.test.cjs",
+    "test:browser": "playwright test",
+    "test:physics": "node tools/physics-harness.mjs 2000"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/janpieterbaalder/duizenden-3d.git"
+  },
+  "keywords": [],
+  "author": "",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/janpieterbaalder/duizenden-3d/issues"
+  },
+  "homepage": "https://github.com/janpieterbaalder/duizenden-3d#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "agent-browser": "^0.38.1",
+    "cannon-es": "^0.20.0",
+    "three": "^0.160.0"
+  },
+  "private": true
+}

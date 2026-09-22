@@ -3,13 +3,17 @@
 // cache-first voor al het overige. De app-shell wordt bij install gecached;
 // CDN-modules (three/cannon-es via unpkg) en fonts worden bij het eerste
 // gebruik in de runtime-cache gezet (opaque responses zijn prima).
-const CACHE = 'duizenden-v2';
+const CACHE = 'duizenden-v3';
 const SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
   './icon.svg',
   './sounds/win-jackpot.ogg',
+  './materials.js',
+  './vendor/three.module.js',
+  './vendor/RoomEnvironment.js',
+  './vendor/cannon-es.js',
 ];
 
 self.addEventListener('install', (e) => {
@@ -23,7 +27,7 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('duizenden-') && k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
