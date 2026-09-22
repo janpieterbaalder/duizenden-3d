@@ -14,14 +14,14 @@
 <script type="importmap">
 {
   "imports": {
-    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
-    "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js"
+    "three": "./vendor/three.module.js",
+    "three/addons/environments/RoomEnvironment.js": "./vendor/RoomEnvironment.js",
+    "cannon-es": "./vendor/cannon-es.js"
   }
 }
 </script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Crimson+Pro:wght@300;400;600&display=swap');
+  /* System serif fallbacks keep startup independent of external font services. */
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -1093,6 +1093,11 @@
 
     #instruction { bottom: 68px; font-size: 13px; }
   }
+  button:focus-visible, input:focus-visible { outline: 2px solid #f0d078; outline-offset: 4px; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+    #screen-flash { display: none !important; }
+  }
 </style>
 </head>
 <body>
@@ -1108,6 +1113,7 @@
   <!-- SETUP SCREEN -->
   <div id="setup-screen">
     <div id="setup-box">
+    <p id="renderer-status" role="status" style="font-size:12px;color:#d8cba9;margin-bottom:8px">3D-tafel voorbereiden…</p>
       <h1>Duizenden</h1>
       <div class="subtitle">Het klassieke dobbelspel</div>
 
@@ -1176,7 +1182,7 @@
 
   <!-- GAME TABLE -->
   <div id="table">
-    <canvas id="three-canvas"></canvas>
+    <canvas id="three-canvas" aria-label="Dobbeltafel. Gebruik toetsen 1 tot en met 6 om stenen te selecteren."></canvas>
   </div>
 
   <div id="player-indicator">SPELER 1</div>
@@ -1218,7 +1224,7 @@
   <div id="rules-overlay">
     <div id="rules-content">
       <h3>Duizenden — Spelregels</h3>
-      <p>Gooi 6 dobbelstenen en scoor punten. Eerste speler tot <strong>10.000</strong> wint!</p>
+      <p>Gooi 6 dobbelstenen en scoor punten. Vanaf <strong>10.000</strong> wordt de lopende ronde uitgespeeld: iedereen krijgt evenveel beurten. De hoogste score wint.</p>
       <p><strong>Puntentelling:</strong></p>
       <ul>
         <li>Eén = 100 punten</li>
@@ -1230,7 +1236,7 @@
       <p><strong>Minimum:</strong> Je moet minimaal <strong>350 punten</strong> per beurt halen om te mogen pakken.</p>
       <p><strong>Elke worp:</strong> Tik op scorende dobbelstenen om ze te bewaren (schuiven naar onderkant). Geen score? <em>De tragiek!</em> — alle beurtpunten weg.</p>
       <p><strong>En door!</strong> Alle 6 bewaard? Je mag opnieuw gooien met alle 6!</p>
-      <p><strong>Sneltoetsen (desktop):</strong> Spatie = gooien, Enter = pakken, Esc = sluiten.</p>
+      <p><strong>Sneltoetsen (desktop):</strong> 1–6 = steen selecteren, Spatie = gooien, Enter = pakken, Esc = sluiten.</p>
       <button id="close-rules" onclick="toggleRules()">Sluiten</button>
     </div>
   </div>
@@ -1543,6 +1549,11 @@ function buildNameInputs() {
 }
 
 function startGame() {
+  if (!window.Renderer3D?.ready) {
+    const status = document.getElementById('renderer-status');
+    status.textContent = 'De 3D-tafel is nog niet klaar. Even geduld; herlaad bij een verbindingsprobleem.';
+    return;
+  }
   tryLockLandscape();
   tryFullscreen();
 
@@ -1811,7 +1822,7 @@ function isValidSelection(sel) {
 // geen finalValue, geen cheat. doRoll initialiseert alleen de state en de
 // 3D-renderer leest de top-face na rust.
 function doRoll() {
-  if (state.rolling || state.animating) return;
+  if (state.rolling || state.animating || state.gameOver || !window.Renderer3D?.ready) return;
   const btnRoll = document.getElementById('btn-roll');
   const btnBank = document.getElementById('btn-bank');
   btnRoll.disabled = true;
@@ -1859,7 +1870,7 @@ function doRoll() {
 }
 
 function rollDice() {
-  if (state.rolling || state.animating) return;
+  if (state.rolling || state.animating || state.gameOver || !window.Renderer3D?.ready) return;
   // Re-roll van gestapelde stenen: alleen die indices, behoudt huidige callback
   if (state.phase === 'stacked' && state.stackedIndices && state.stackedIndices.length > 0) {
     const indices = state.stackedIndices.slice();
@@ -1875,6 +1886,7 @@ function rollDice() {
   }
   if (state.phase === 'select') {
     const sel = state.dice.filter(d => d.selected && !d.kept);
+    if (!isValidSelection(sel)) return;
     if (sel.length > 0 && isValidSelection(sel)) {
       // Toast voor bijzondere combinaties (straat / drie enen)
       const combo = comboLabel(sel.map(d => d.value));
@@ -1909,7 +1921,7 @@ function rollDice() {
 function selectDie(index) {
   if (state.phase !== 'select' || state.rolling || state.animating) return;
   const die = state.dice[index];
-  if (die.kept) return;
+  if (!die || die.kept) return;
 
   // Voorkom selectie van niet-scorende dobbelstenen
   if (!die.selected && !canDieScore(die)) return;
@@ -1942,8 +1954,10 @@ function selectDie(index) {
 }
 
 function bankScore() {
-  if (state.rolling || state.animating) return;
+  if (state.rolling || state.animating || state.gameOver || state.phase !== 'select') return;
   const sel = state.dice.filter(d => d.selected && !d.kept);
+  if (sel.length > 0 && !isValidSelection(sel)) return;
+  if (state.turnScore + calculateScore(sel.map(d => d.value)) < MIN_TURN) return;
   if (sel.length > 0 && isValidSelection(sel)) {
     state.turnScore += state.selectedScore;
     state.selectedScore = 0;
@@ -2163,7 +2177,11 @@ document.addEventListener('keydown', (e) => {
   if (!document.getElementById('setup-screen').classList.contains('hidden')) return;
   if (state.gameOver || isBotTurn()) return;
   if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
-  if (e.code === 'Space') {
+  if (document.querySelector('#rules-overlay.show, #strategy-overlay.show, #stats-overlay.show')) return;
+  if (/^Digit[1-6]$/.test(e.code)) {
+    e.preventDefault();
+    if (state.phase === 'select' && !state.rolling && !state.animating) selectDie(Number(e.code.slice(-1)) - 1);
+  } else if (e.code === 'Space') {
     e.preventDefault();
     if (!document.getElementById('btn-roll').disabled) rollDice();
   } else if (e.code === 'Enter') {
@@ -2274,13 +2292,13 @@ function playDiceSound() {
 // Volume schaalt met inslag-snelheid maar is hard gecapt op ~0.10 om
 // niet opvallend te zijn. Synthese i.p.v. samples = geen 'ticking'-opname-
 // artifacten en deterministisch kort.
-function playCollisionSound(v, kind) {
+function playCollisionSound(v, kind, x = 0) {
   if (!state.soundOn) return;
   if (activeSources >= MAX_ACTIVE_SOURCES) return;
   try {
     const c = getAudioCtx();
     const t0 = c.currentTime;
-    const dur = kind === 'dice' ? 0.10 : 0.18;
+    const dur = kind === 'dice' ? 0.045 : kind === 'wall' ? 0.085 : 0.065;
     const len = Math.max(1, (c.sampleRate * dur) | 0);
     const buf = c.createBuffer(1, len, c.sampleRate);
     const data = buf.getChannelData(0);
@@ -2292,14 +2310,16 @@ function playCollisionSound(v, kind) {
     const lp = c.createBiquadFilter();
     lp.type = 'lowpass';
     lp.Q.value = 0.9;  // lagere Q = minder resonantie, meer diffuus
-    lp.frequency.value = kind === 'felt' ? 170 : kind === 'wall' ? 120 : 320;
+    lp.frequency.value = kind === 'felt' ? 750 : kind === 'wall' ? 1400 : 2800;
     const gain = c.createGain();
     // Iets meer gain om compensatie voor het zware filteren.
-    const target = Math.min(0.95, 0.30 + (v - 0.5) * 0.12);
+    const target = Math.min(0.16, 0.014 + v * v * 0.009);
     gain.gain.setValueAtTime(0.0001, t0);
     gain.gain.exponentialRampToValueAtTime(Math.max(0.001, target), t0 + 0.003);
     gain.gain.exponentialRampToValueAtTime(0.0008, t0 + dur);
-    src.connect(lp); lp.connect(gain); gain.connect(c.destination);
+    const pan = c.createStereoPanner();
+    pan.pan.value = Math.max(-0.8, Math.min(0.8, x / 2.2));
+    src.connect(lp); lp.connect(gain); gain.connect(pan); pan.connect(c.destination);
     activeSources++;
     src.onended = () => { activeSources = Math.max(0, activeSources - 1); };
     src.start(t0);
@@ -2406,6 +2426,7 @@ function endGame(winnerIndex) {
 
 // ---- Confetti engine ----
 function startConfetti() {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const cvs = document.getElementById('confetti-canvas');
   const cCtx = cvs.getContext('2d');
   const dpr = window.devicePixelRatio || 1;
@@ -2797,6 +2818,8 @@ function botAfterRoll() {
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import * as CANNON from 'cannon-es';
+import { makeSurface, addTableDetails } from './materials.js';
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
 const Renderer3D = { ready: false };
 window.Renderer3D = Renderer3D;
@@ -2806,7 +2829,8 @@ const canvas3D = document.getElementById('three-canvas');
 
 // ---------------- Three.js scene ----------------
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x06090a);
+scene.background = new THREE.Color(0x101512);
+scene.fog = new THREE.FogExp2(0x101512, 0.065);
 
 const camera = new THREE.PerspectiveCamera(38, 16/9, 0.1, 100);
 camera.up.set(0, 1, 0);
@@ -2814,28 +2838,34 @@ camera.position.set(0, 2.6, 1.85);
 camera.lookAt(0, 0, -0.8);
 
 const renderer = new THREE.WebGLRenderer({ canvas: canvas3D, antialias: true });
+let sceneDirty = true;
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));   // cap op 1.5: zichtbaar scherp op telefoon, halveert pixels t.o.v. native 3x
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.82;     // iets minder belicht → dice ogen rustiger
+renderer.toneMappingExposure = 1.05;     // iets minder belicht → dice ogen rustiger
 
 const pmrem = new THREE.PMREMGenerator(renderer);
-scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+const environmentRoom = new RoomEnvironment();
+const environmentTarget = pmrem.fromScene(environmentRoom, 0.06);
+scene.environment = environmentTarget.texture;
+environmentRoom.dispose();
+pmrem.dispose();
 
 // ---------------- Verlichting ----------------
-scene.add(new THREE.AmbientLight(0x223040, 0.25));
+scene.add(new THREE.HemisphereLight(0xdbe8ed, 0x292015, 0.65));
 
-const key = new THREE.SpotLight(0xfff0c8, 32, 8, Math.PI / 5, 0.55, 1.4);
-key.position.set(0, 2.6, 0.5);
+const key = new THREE.SpotLight(0xffe4bd, 48, 12, Math.PI / 4, 0.8, 2);
+key.position.set(-1.4, 3.8, 0.9);
 key.target.position.set(0, 0, -0.2);
 key.castShadow = true;
 // Schaduw-resolutie: op touch-apparaten (mobiel/tablet) halveren voor GPU/warmte.
 const IS_TOUCH = matchMedia('(pointer: coarse)').matches;
 const SHADOW_RES = IS_TOUCH ? 1024 : 2048;
 key.shadow.mapSize.set(SHADOW_RES, SHADOW_RES);
-key.shadow.bias = -0.0005;
+key.shadow.bias = -0.00015;
+key.shadow.normalBias = 0.008;
 key.shadow.radius = 6;
 key.shadow.camera.near = 0.5;
 key.shadow.camera.far = 6;
@@ -2860,49 +2890,6 @@ scene.add(rimR);
 const tableGroup = new THREE.Group();
 scene.add(tableGroup);
 
-// Procedurele felttextuur met "Buist" watermark in het midden.
-function makeFeltTexture() {
-  const size = 1024;
-  const c = document.createElement('canvas');
-  c.width = c.height = size;
-  const ctx = c.getContext('2d');
-  ctx.fillStyle = '#0c5a2a';
-  ctx.fillRect(0, 0, size, size);
-  // Vezelruis
-  const img = ctx.getImageData(0, 0, size, size);
-  const d = img.data;
-  for (let i = 0; i < d.length; i += 4) {
-    const n = (Math.random() - 0.5) * 22;
-    const m = (Math.random() - 0.5) * 8;
-    d[i]   = Math.max(0, Math.min(255, d[i]   + n * 0.4 + m));
-    d[i+1] = Math.max(0, Math.min(255, d[i+1] + n + m));
-    d[i+2] = Math.max(0, Math.min(255, d[i+2] + n * 0.3 + m));
-  }
-  ctx.putImageData(img, 0, 0);
-  // Vezellijntjes
-  ctx.globalAlpha = 0.18;
-  for (let k = 0; k < 14000; k++) {
-    const x = Math.random() * size;
-    const y = Math.random() * size;
-    const a = Math.random() * Math.PI;
-    const len = 2 + Math.random() * 4;
-    const shade = 60 + Math.random() * 80;
-    ctx.strokeStyle = `rgb(${shade*0.2|0}, ${shade|0}, ${shade*0.35|0})`;
-    ctx.lineWidth = 0.6;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len);
-    ctx.stroke();
-  }
-  ctx.globalAlpha = 1;
-  const tex = new THREE.CanvasTexture(c);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(4, 4);
-  tex.anisotropy = 8;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
 // Aparte "decal"-textuur voor de Buist-watermark op de bovenkant van de tafel,
 // niet getiled — wordt gemixt over het laken via een tweede mesh.
 function makeWatermarkTexture() {
@@ -2922,18 +2909,15 @@ function makeWatermarkTexture() {
   return tex;
 }
 
-const feltColor = makeFeltTexture();
-const feltBump = feltColor.clone();
-feltBump.needsUpdate = true;
+const felt = makeSurface('felt');
 
 const tableTopGeo = new THREE.CylinderGeometry(2.2, 2.2, 0.08, 96);
 const tableTopMat = new THREE.MeshPhysicalMaterial({
-  map: feltColor,
-  bumpMap: feltBump,
-  bumpScale: 0.015,
+  ...felt,
+  bumpScale: 0.00018,
   roughness: 0.92,
-  sheen: 0.6,
-  sheenColor: new THREE.Color(0x4aa86b),
+  sheen: 0.35,
+  sheenColor: new THREE.Color(0x759580),
   sheenRoughness: 0.7,
 });
 const tableTop = new THREE.Mesh(tableTopGeo, tableTopMat);
@@ -2956,11 +2940,12 @@ tableGroup.add(watermark);
 // Houten rail
 const railGeo = new THREE.TorusGeometry(2.18, 0.10, 24, 96);
 const railMat = new THREE.MeshPhysicalMaterial({
-  color: 0x2a160a,
-  roughness: 0.35,
-  clearcoat: 0.9,
-  clearcoatRoughness: 0.15,
-  metalness: 0.1,
+  ...makeSurface('wood'),
+  bumpScale: 0.0015,
+  roughness: 0.34,
+  clearcoat: 0.45,
+  clearcoatRoughness: 0.26,
+  metalness: 0,
 });
 const rail = new THREE.Mesh(railGeo, railMat);
 rail.rotation.x = Math.PI / 2;
@@ -2968,6 +2953,7 @@ rail.position.y = 0.045;
 rail.castShadow = true;
 rail.receiveShadow = true;
 tableGroup.add(rail);
+addTableDetails(tableGroup);
 
 // Onderkant tafel
 const baseGeo = new THREE.CylinderGeometry(1.2, 1.2, 0.6, 32);
@@ -2989,16 +2975,18 @@ scene.add(floor);
 const DICE_SIZE = 0.36;
 const FELT_TOP_Y = 0.04;
 
-function makeDieGeometry(size, sphereR, segments = 128) {
+function makeDieGeometry(size, radius, segments = 64) {
   const geo = new THREE.BoxGeometry(size, size, size, segments, segments, segments);
   const pos = geo.attributes.position;
+  const core = size / 2 - radius;
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
-    const d = Math.sqrt(x*x + y*y + z*z);
-    if (d > sphereR) {
-      const s = sphereR / d;
-      pos.setXYZ(i, x*s, y*s, z*s);
-    }
+    const cx = THREE.MathUtils.clamp(x, -core, core);
+    const cy = THREE.MathUtils.clamp(y, -core, core);
+    const cz = THREE.MathUtils.clamp(z, -core, core);
+    const length = Math.hypot(x-cx, y-cy, z-cz) || 1;
+    pos.setXYZ(i, cx + (x-cx)*radius/length,
+      cy + (y-cy)*radius/length, cz + (z-cz)*radius/length);
   }
   pos.needsUpdate = true;
   geo.computeVertexNormals();
@@ -3138,18 +3126,19 @@ function makeDieMaterials() {
   // Eigen MeshPhysicalMaterial per dobbelsteen (gedeelde textures), zodat we
   // per-dobbelsteen emissive kunnen instellen voor selectie-glow.
   return faceMaterialTemplates.map(({ map, bumpMap }) => new THREE.MeshPhysicalMaterial({
-    map, bumpMap, bumpScale: 0.16,
-    roughness: 0.62,        // iets ruwer → minder felle highlights
-    clearcoat: 0.35,        // minder glanslaag
-    clearcoatRoughness: 0.35,
+    map, bumpMap, bumpScale: 0.002,
+    envMapIntensity: 0.75,
+    roughness: 0.34,
+    clearcoat: 0.65,
+    clearcoatRoughness: 0.2,
     metalness: 0.0,
     emissive: 0x000000,
     emissiveIntensity: 0.0,
   }));
 }
 
-const dieGeo = makeDieGeometry(DICE_SIZE, DICE_SIZE/2 * 1.38, 192);
-indentPips(dieGeo, DICE_SIZE/2, DICE_SIZE * 0.065, DICE_SIZE * 0.08);
+const dieGeo = makeDieGeometry(DICE_SIZE, DICE_SIZE * 0.07, IS_TOUCH ? 40 : 64);
+indentPips(dieGeo, DICE_SIZE/2, DICE_SIZE * 0.018, DICE_SIZE * 0.064);
 
 const DICE_COUNT = 6;
 const diceMeshes = [];
@@ -3232,7 +3221,8 @@ const CAM_INTRO_POS = new THREE.Vector3(0, 4.8, 3.8);
 const CAM_LOOK_AT = new THREE.Vector3(0, 0, -0.8);
 let introState = null;
 Renderer3D.playIntro = function() {
-  introState = { t: 0, dur: 1.6 };
+  introState = reducedMotion.matches ? null : { t: 0, dur: 1.6 };
+  if (!introState) { camera.position.copy(CAM_PLAY_POS); camera.lookAt(CAM_LOOK_AT); }
 };
 
 // ---------------- Landing-stof (sprite-pool) ----------------
@@ -3266,7 +3256,9 @@ for (let i = 0; i < PUFF_POOL; i++) {
 }
 let puffCursor = 0;
 function spawnPuffs(x, z, strength) {
-  const n = 4 + ((Math.random() * 3) | 0);
+  if (reducedMotion.matches) return;
+  strength *= 0.15;
+  const n = 2;
   for (let k = 0; k < n; k++) {
     const p = puffs[puffCursor];
     puffCursor = (puffCursor + 1) % PUFF_POOL;
@@ -3531,7 +3523,7 @@ diceBodies.forEach(b => {
     const kind = matName === 'felt' ? 'felt' : matName === 'wall' ? 'wall' : 'dice';
     // Stofwolkje bij stevige landing op het vilt (ook met geluid uit)
     if (kind === 'felt' && v > 1.1) spawnPuffs(b.position.x, b.position.z, Math.min(1, v / 4));
-    if (state.soundOn) playCollisionSound(v, kind);
+    if (state.soundOn) playCollisionSound(v, kind, b.position.x);
   });
 });
 
@@ -3539,6 +3531,7 @@ diceBodies.forEach(b => {
 const BASE_FOV = 38;
 const BASE_ASPECT = 16 / 9;
 function fitRenderer() {
+  sceneDirty = true;
   const w = Math.max(1, tableEl.clientWidth);
   const h = Math.max(1, tableEl.clientHeight);
   renderer.setSize(w, h, false);
@@ -3672,18 +3665,19 @@ function updateSelectionVisuals() {
     hash += (d.kept ? 'k' : (d.selected ? 's' : '.'));
   }
   // Tijdens roll/snap moeten ring-posities meebewegen → forceer update
-  if (hash === _lastSelHash && !rollState.active) return;
+  if (hash === _lastSelHash && !rollState.active && !keptAnimation) return;
   _lastSelHash = hash;
+  sceneDirty = true;
   state.dice.forEach((d, i) => {
     const ring = selectionRings[i];
     const mats = diceMats[i];
-    const selected = d.selected && !d.kept;
+    const selected = d.selected && !d.kept && !keptAnimation;
     if (selected) {
       ring.visible = true;
       ring.position.set(diceMeshes[i].position.x, FELT_TOP_Y + 0.003, diceMeshes[i].position.z);
       for (const m of mats) {
         m.emissive.setHex(0x402008);
-        m.emissiveIntensity = 0.55;
+        m.emissiveIntensity = 0.12;
       }
     } else {
       ring.visible = false;
@@ -3707,7 +3701,7 @@ const rollState = {
   onSettle: null,
   restTimer: 0,
   rerollAttempts: new Map(),  // index → aantal re-throw pogingen
-  rollStartMs: 0,              // performance.now() bij rollDice — voor budget
+  elapsedMs: 0,              // performance.now() bij rollDice — voor budget
   settleTween: null,           // eind-garantie: zachte rotatie van resterende leuners naar vlak
 };
 const TILT_THRESHOLD = 0.82;       // ~35° — voor isFullyStacked vlakheids-vereiste
@@ -3941,14 +3935,17 @@ Renderer3D.rollDice = function(indices, onSettle) {
   rollState.onSettle = onSettle;
   rollState.restTimer = 0;
   rollState.rerollAttempts.clear();
-  rollState.rollStartMs = performance.now();
+  rollState.elapsedMs = 0;
 };
 
 // ---------------- Scene reset (beurtwissel) ----------------
 // Verwijdert alle zichtbare dice + selectie-ringen en parkeert physics bodies
 // buiten beeld. Gebruikt door nextPlayer() zodat de tafel direct leeg is als
 // een speler/bot zijn beurt afsluit (geen lingering geselecteerde stenen).
+let keptAnimation = null;
 Renderer3D.clearTable = function() {
+  sceneDirty = true;
+  keptAnimation = null;
   for (let i = 0; i < DICE_COUNT; i++) {
     diceMeshes[i].visible = false;
     selectionRings[i].visible = false;
@@ -3971,17 +3968,19 @@ Renderer3D.clearTable = function() {
 
 // ---------------- Move-to-kept tween ----------------
 Renderer3D.moveToKept = function(indices, currentKeptCount, onDone) {
-  // Weggepakte stenen worden via 2D-bar (#kept-bar) getoond, dus 3D-mesh verbergen
-  // en physics-body ver buiten beeld parkeren zodat hij geen physics meer beïnvloedt.
-  indices.forEach(i => {
-    diceMeshes[i].visible = false;
-    const b = diceBodies[i];
-    b.type = CANNON.Body.STATIC;
-    b.velocity.set(0, 0, 0);
-    b.angularVelocity.set(0, 0, 0);
-    b.position.set(0, -100 - i, 0);
+  // Lift towards the player before transferring to the kept tray. Physics
+  // bodies leave the simulation immediately; the visual move cannot affect a roll.
+  const moves = indices.map(i => {
+    const mesh = diceMeshes[i];
+    const body = diceBodies[i];
+    body.type = CANNON.Body.STATIC;
+    body.velocity.setZero();
+    body.angularVelocity.setZero();
+    body.position.set(0, -100 - i, 0);
+    selectionRings[i].visible = false;
+    return { i, from: mesh.position.clone() };
   });
-  if (onDone) onDone();
+  keptAnimation = { moves, t: 0, duration: reducedMotion.matches ? 0.01 : 0.38, onDone };
 };
 
 // ---------------- Click → raycast → selectDie ----------------
@@ -4060,8 +4059,25 @@ function finalizeRoll() {
 
 // ---------------- Render-lus ----------------
 const clock = new THREE.Clock();
+document.addEventListener('visibilitychange', () => clock.getDelta());
 function tick() {
   const rawDt = clock.getDelta();
+  if (document.hidden) { requestAnimationFrame(tick); return; }
+  if (introState || keptAnimation || puffs.some(p => p.active)) sceneDirty = true;
+  if (keptAnimation) {
+    const a = keptAnimation;
+    a.t += Math.min(rawDt, 1/30);
+    const p = Math.min(1, a.t / a.duration);
+    const ease = p * p * (3 - 2 * p);
+    for (const move of a.moves) {
+      const mesh = diceMeshes[move.i];
+      mesh.position.copy(move.from);
+      mesh.position.z += ease * 1.5;
+      mesh.position.y += Math.sin(p * Math.PI) * 0.25;
+      if (p === 1) mesh.visible = false;
+    }
+    if (p === 1) { keptAnimation = null; a.onDone?.(); }
+  }
   // Visuele dt (tweens, puffs, intro): clamp op 1/30 zodat een hikkende frame
   // geen sprong in animaties geeft. De PHYSICS gebruikt een eigen, ruimere
   // clamp (physDt hieronder) — de oude gedeelde 1/30-clamp was precies de
@@ -4088,9 +4104,9 @@ function tick() {
   const pulseT = performance.now() / 1000;
   for (const ring of selectionRings) {
     if (!ring.visible) continue;
-    const s = 1 + 0.05 * Math.sin(pulseT * 5);
+    const s = reducedMotion.matches ? 1 : 1 + 0.025 * Math.sin(pulseT * 3);
     ring.scale.set(s, s, 1);
-    ring.material.opacity = 0.72 + 0.23 * (0.5 + 0.5 * Math.sin(pulseT * 5));
+    ring.material.opacity = 0.65;
   }
 
   // Eind-garantie tween: kantel resterende scheve/leunende dice zacht naar hun
@@ -4127,6 +4143,7 @@ function tick() {
   // stil en is iedere step pure overhead (CPU + GC). Scheelt veel batterij/lag
   // tijdens de selectie- en wacht-fasen.
   if (rollState.active) {
+    sceneDirty = true;
     // Stabilizing torque loopt via het 'preStep'-event (per substep).
     // maxSubSteps 6: met physDt (clamp 100 ms i.p.v. 1/30) blijft de
     // simulatie real-time tot ~10 fps — géén slow-motion bij framedrops.
@@ -4144,7 +4161,8 @@ function tick() {
   // Worp-rust-detectie + re-throw pipeline
   if (rollState.active) {
     // Hard budget: na ROLL_BUDGET_MS forceren we afronding (accept whatever state).
-    const elapsedRoll = performance.now() - rollState.rollStartMs;
+    rollState.elapsedMs += physDt * 1000;
+    const elapsedRoll = rollState.elapsedMs;
     if (elapsedRoll > ROLL_BUDGET_MS) {
       finalizeRoll();
     } else {
@@ -4184,13 +4202,17 @@ function tick() {
   }
 
   updateSelectionVisuals();
-  renderer.render(scene, camera);
+  if (sceneDirty || introState || keptAnimation || selectionRings.some(r => r.visible) || puffs.some(p => p.active)) {
+    renderer.render(scene, camera);
+    sceneDirty = false;
+  }
   requestAnimationFrame(tick);
 }
 clock.getDelta();
 requestAnimationFrame(tick);
 
 Renderer3D.ready = true;
+document.getElementById('renderer-status').textContent = 'De tafel is klaar';
 </script>
 
 </body>

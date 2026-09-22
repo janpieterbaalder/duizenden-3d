@@ -16,6 +16,7 @@
 // Wijzig je daar physics-parameters, werk ze dan ook hier bij — anders
 // valideert de harnas een andere wereld dan het spel.
 import * as CANNON from 'cannon-es';
+import { pathToFileURL } from 'node:url';
 
 export const DEFAULTS = {
   DICE_SIZE: 0.36,
@@ -469,8 +470,9 @@ export function fmt(label, agg){
 }
 
 // CLI
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const n = parseInt(process.argv[2] || '1000', 10);
+  if (!Number.isInteger(n) || n < 1) throw new Error('Geef een positief aantal worpen op.');
   console.log(`Simuleer ${n} worpen met de huidige spel-parameters...`);
   const t0 = Date.now();
   console.log(fmt(`Resultaat (n=${n})`, runBatch({}, n)));
