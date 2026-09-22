@@ -34,15 +34,15 @@ export function makeSurface(kind) {
       let rgb, relief;
       if (kind === 'felt') {
         const weave = Math.sin(x * Math.PI / 2) * Math.cos(y * Math.PI / 2);
-        const value = noise * 6 + weave;
-        rgb = [19 + value * 0.35, 62 + value, 47 + value * 0.7];
-        relief = 128 + noise * 65 + weave * 15;
+        const value = noise * 10 + weave * 2;
+        rgb = [14 + value * 0.35, 60 + value, 30 + value * 0.7];
+        relief = 128 + noise * 35 + weave * 15;
       } else {
         const bend = Math.sin(x * Math.PI * 4 / size) * 5 + Math.sin(x * Math.PI * 12 / size) * 1.5;
         const grain = Math.sin(y * Math.PI * 48 / size + bend);
         const fine = Math.sin(y * Math.PI * 192 / size + bend * 3);
         const value = grain * 5 + fine * 2 + noise * 3;
-        rgb = [74 + value, 40 + value * 0.65, 23 + value * 0.4];
+        rgb = [52 + value, 28 + value * 0.65, 16 + value * 0.4];
         relief = 128 + grain * 20 + fine * 8 + noise * 10;
       }
       colorData.data.set([...rgb, 255], i);
@@ -51,7 +51,7 @@ export function makeSurface(kind) {
   }
   ctx.putImageData(colorData, 0, 0);
   hctx.putImageData(heightData, 0, 0);
-  const repeat = kind === 'felt' ? [7, 7] : [8, 1];
+  const repeat = kind === 'felt' ? [3, 3] : [8, 1];
   return { map: texture(canvas, true, repeat), bumpMap: texture(height, false, repeat) };
 }
 
@@ -76,12 +76,4 @@ export function addTableDetails(group) {
     stitches.setMatrixAt(i, dummy.matrix);
   }
   group.add(stitches);
-  // The original simulation has a front stop at z=.55. Make it visible,
-  // so a collision no longer looks like a bounce against empty space.
-  const front = new THREE.Mesh(new THREE.BoxGeometry(4.12, 0.13, 0.08),
-    new THREE.MeshPhysicalMaterial({ ...makeSurface('wood'), roughness: 0.38,
-      bumpScale: 0.001, clearcoat: 0.35, clearcoatRoughness: 0.3 }));
-  front.position.set(0, 0.045, 0.59);
-  front.castShadow = front.receiveShadow = true;
-  group.add(front);
 }
